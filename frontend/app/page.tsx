@@ -1,41 +1,42 @@
-// app/page.tsx
 "use client";
-
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 
 export default function Home() {
-  const router = useRouter();
-
-  const handlePlayNow = () => {
-    router.push("/start");
-  };
+  const sections = [
+    { title: "redefining inclusivity" },
+    { title: "highlighting accessibility" },
+    { title: "playing smarter" },
+    { title: "shuffl 🂡", isCallToAction: true },
+  ];
 
   return (
-    <div className="min-h-screen flex flex-col bg-black text-white">
-      <header className="p-6 absolute top-0 left-0">
-        <h2 className="text-2xl font-bold text-[#ffe330]">shuffl</h2>
-      </header>
+    <main className="flex flex-col min-h-screen pb-16">
+      {/* Hero section */}
+      <section className="h-screen flex items-center justify-center">
+        <h1 className="text-5xl md:text-7xl font-bold text-center">
+          A new card game
+          <br />
+          <span>experience.</span>
+        </h1>
+      </section>
 
-      <div className="flex-1 flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-4xl md:text-6xl font-bold mb-8">
-            A new card game
-            <br />
-            <span className="text-[#ffe330]">experience</span>
-          </h1>
-
-          <button
-            onClick={handlePlayNow}
-            className="bg-[#ffe330] hover:bg-white text-black font-bold transition-colors duration-300 text-lg px-8 py-6 rounded-lg"
-          >
-            Play Now
-          </button>
-        </div>
-      </div>
-
-      <footer className="p-4 text-center text-gray-500 text-sm">
-        Play smarter, learn faster, accessible for everyone
-      </footer>
-    </div>
+      {/* Static sections */}
+      {sections.map((section, index) => (
+        <section
+          key={index}
+          className={`${section.isCallToAction ? "min-h-[90vh] flex flex-col" : "min-h-[50vh] flex"} items-center justify-center ${!section.isCallToAction ? "py-16" : ""} ${section.isCallToAction ? "gap-6" : ""}`}
+        >
+          <h2 className="text-4xl md:text-6xl font-bold text-center">
+            {section.title}
+          </h2>
+          {section.isCallToAction && (
+            <Button className="bg-primary hover:bg-white text-black text-lg px-8 py-6">
+              <Link href="/start">Get Started Now</Link>
+            </Button>
+          )}
+        </section>
+      ))}
+    </main>
   );
 }

@@ -1,12 +1,9 @@
-// frontend/lib/game-context.tsx
 "use client";
 
 import React, { createContext, useState, useContext, ReactNode } from "react";
-import { GameRoomType, UserRole } from "./types";
+import { UserRole } from "./types";
 
 type GameContextType = {
-  gameRoom: GameRoomType | null;
-  setGameRoom: React.Dispatch<React.SetStateAction<GameRoomType | null>>;
   userRole: {
     role: UserRole | null;
     playerId?: string;
@@ -22,19 +19,15 @@ type GameContextType = {
 const GameContext = createContext<GameContextType | undefined>(undefined);
 
 export const GameProvider = ({ children }: { children: ReactNode }) => {
-  const [gameRoom, setGameRoom] = useState<GameRoomType | null>(null);
+  // User role state (PLAYER or DEALER)
   const [userRole, setUserRole] = useState<{
     role: UserRole | null;
     playerId?: string;
   } | null>(null);
 
-  // Removed the localStorage useEffect blocks
-
   return (
     <GameContext.Provider
       value={{
-        gameRoom,
-        setGameRoom,
         userRole,
         setUserRole,
       }}
