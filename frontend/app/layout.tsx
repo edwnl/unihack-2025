@@ -1,7 +1,7 @@
-// frontend/app/layout.tsx
 import type { Metadata } from "next";
 import "./globals.css";
 import { Poppins } from "next/font/google";
+import { GameProvider } from "@/lib/game-context";
 
 const poppins = Poppins({
   subsets: ["latin"],
@@ -10,7 +10,7 @@ const poppins = Poppins({
 
 export const metadata: Metadata = {
   title: "Poker Game",
-  description: "Accessible poker game for hackathon",
+  description: "Accessible poker game for everyone",
 };
 
 export default function RootLayout({
@@ -20,7 +20,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
-      <body className={`${poppins.className} antialiased`}>{children}</body>
+      <body className={`${poppins.className} antialiased`}>
+        <GameProvider>{children}</GameProvider>
+      </body>
     </html>
   );
 }
