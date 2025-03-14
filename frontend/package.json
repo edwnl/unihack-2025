@@ -3,10 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "../unihack-2025/node_modules/.bin/next dev",
-    "build": "../unihack-2025/node_modules/.bin/next build",
-    "start": "../unihack-2025/node_modules/.bin/next start",
-    "lint": "../unihack-2025/node_modules/.bin/next lint"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "lint-tsc": "npx tsc --noEmit",
+    "format": "npx prettier . --write",
+    "liang": "next lint && npx tsc --noEmit && npx prettier . --write"
   },
   "dependencies": {
     "react": "^18",
