@@ -1,0 +1,8 @@
+FROM gradle:8.13-jdk17
+
+WORKDIR /app
+
+COPY build.gradle settings.gradle ./
+COPY src ./src
+
+CMD ["sh", "-c", "gradle build -t & gradle bootRun"]
