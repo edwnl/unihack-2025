@@ -18,3 +18,22 @@ services:
         - path: ./backend/settings.gradle
           target: /app/settings.gradle
           action: sync
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+    develop:
+      watch:
+        - path: ./frontend
+          target: /app
+          action: sync
+          ignore:
+            - node_modules/
+            - .next/
+    depends_on:
+      - backend
