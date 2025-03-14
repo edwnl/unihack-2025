@@ -56,6 +56,9 @@ next-env.d.ts
 
 # Gradle
 .gradle
+gradle
+gradlew
+gradlew.bat
 /build/
 !gradle/wrapper/gradle-wrapper.jar
 
