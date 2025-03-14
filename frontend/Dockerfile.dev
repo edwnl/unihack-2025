@@ -1,0 +1,15 @@
+# frontend/Dockerfile.dev
+FROM node:20-alpine AS base
+
+# Set working directory
+WORKDIR /app
+
+# Install dependencies
+COPY package.json package-lock.json* ./
+RUN npm ci
+
+# Copy source code
+COPY . .
+
+# Start development server
+CMD ["npm", "run", "dev"]
