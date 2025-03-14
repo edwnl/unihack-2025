@@ -18,10 +18,19 @@ jobs:
     permissions:
       contents: read
       packages: write
+    outputs:
+      short_sha: ${{ steps.extract-sha.outputs.short_sha }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Extract short SHA
+        id: extract-sha
+        run: |
+          SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+          echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
+          echo "Using short SHA: $SHORT_SHA"
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
@@ -68,5 +77,5 @@ jobs:
           registryPassword: ${{ secrets.GHCR_PASS }}
           containerAppName: unihack-2025-backend
           resourceGroup: ${{ secrets.AZURE_RESOURCE_GROUP }}
-          imageToDeploy: ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE_NAME }}:latest
+          imageToDeploy: ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE_NAME }}:sha-${{ needs.build-and-push.outputs.short_sha }}
           targetPort: 8080
