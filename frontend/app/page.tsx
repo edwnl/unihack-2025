@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
 export default function Home() {
+  // Section content for easier maintenance
   const sections = [
     { title: "redefining inclusivity" },
     { title: "highlighting accessibility" },
@@ -32,7 +33,7 @@ export default function Home() {
           </h2>
           {section.isCallToAction && (
             <Button className="bg-primary hover:bg-white text-black text-lg px-8 py-6">
-              <Link href="/start">Get Started Now</Link>
+              <Link href="/pick-game">Get Started Now</Link>
             </Button>
           )}
         </section>

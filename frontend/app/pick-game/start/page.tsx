@@ -16,9 +16,15 @@ export default function StartPage() {
     });
 
     if (role === "PLAYER") {
-      router.push("/start/player");
+      // player details page
+      router.push("/pick-game/start/player");
     } else {
-      router.push("/start/dealer");
+      // dealer -> waiting room
+      const mockGameCode = Math.random()
+        .toString(36)
+        .substring(2, 8)
+        .toUpperCase();
+      router.push(`/pick-game/waiting/${mockGameCode}`);
     }
   };
 
@@ -27,7 +33,7 @@ export default function StartPage() {
       <Button
         variant="ghost"
         className="absolute top-4 left-4"
-        onClick={() => router.push("/")}
+        onClick={() => router.push("/pick-game")}
       >
         <ArrowLeft className="w-5 h-5 mr-1" />
         Back

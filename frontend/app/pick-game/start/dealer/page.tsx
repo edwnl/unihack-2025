@@ -23,8 +23,6 @@ export default function DealerCreatePage() {
         playerId: "temp-dealer-id",
       });
 
-      //   const mockGameCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-
       // home for now
       router.push("/");
     } catch (err) {
@@ -60,7 +58,7 @@ export default function DealerCreatePage() {
             <Button
               variant="ghost"
               className="w-full mt-4"
-              onClick={() => router.push("/start")}
+              onClick={() => router.push("/pick-game/start")}
             >
               Back
             </Button>
