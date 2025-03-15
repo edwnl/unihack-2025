@@ -11,11 +11,9 @@ import java.util.HashMap;
 public class CardHandlingService {
 
     private final GameLogService gameLogService;
-    private final GameStateService gameStateService;
 
-    public CardHandlingService(GameLogService gameLogService, GameStateService gameStateService) {
+    public CardHandlingService(GameLogService gameLogService) {
         this.gameLogService = gameLogService;
-        this.gameStateService = gameStateService;
     }
 
     public void handleCardScan(GameRoom room, Card card) {
@@ -49,7 +47,7 @@ public class CardHandlingService {
 
     private void handlePreflopCardScan(GameRoom room, Card card) {
         // Assign card to a player
-        assignCardToPlayer(room, card);
+        assignCardToNextPlayer(room, card);
         updatePlayerHandRankings(room);
 
         // Check if all players have their cards
@@ -175,37 +173,21 @@ public class CardHandlingService {
         gameLogService.addLogAction(room, "River betting begins.");
     }
 
-    private void assignCardToPlayer(GameRoom room, Card card) {
-        // Find player with the fewest cards
-        Player targetPlayer = null;
-        int minCardCount = Integer.MAX_VALUE;
+    private void assignCardToNextPlayer(GameRoom room, Card card) {
+        int nextPlayerIndex = room.getNextCardRecipientIndex();
+        Player nextPlayer = room.getPlayers().get(nextPlayerIndex);
 
-        for (Player player : room.getPlayers()) {
-            if (!player.isActive()) continue;
-
-            // Initialize hand if null
-            if (player.getHand() == null) {
-                player.setHand(new PlayerHand(new ArrayList<>()));
-            }
-
-            // Get card count
-            int cardCount = player.getHand().getCards().size();
-            if (cardCount < minCardCount) {
-                minCardCount = cardCount;
-                targetPlayer = player;
-            }
+        // Initialize hand if null
+        if (nextPlayer.getHand() == null) {
+            nextPlayer.setHand(new PlayerHand(new ArrayList<>()));
         }
 
-        // Assign card to player
-        if (targetPlayer != null && minCardCount < 2) {
-            if (targetPlayer.getHand() == null) {
-                targetPlayer.setHand(new PlayerHand(new ArrayList<>()));
-            }
-            targetPlayer.getHand().getCards().add(card);
+        // Add card to player's hand
+        nextPlayer.getHand().getCards().add(card);
+        gameLogService.addLogAction(room, "Card dealt to " + nextPlayer.getName() + ": " + card.getRank() + " of " + card.getSuit());
 
-            // Add LOG action for debugging
-            gameLogService.addLogAction(room, "Card dealt to " + targetPlayer.getName() + ": " + card.getRank() + " of " + card.getSuit());
-        }
+        // Update the next player index for the next card (move clockwise)
+        room.setNextCardRecipientIndex((nextPlayerIndex + 1) % room.getPlayers().size());
     }
 
     public void updatePlayerHandRankings(GameRoom room) {

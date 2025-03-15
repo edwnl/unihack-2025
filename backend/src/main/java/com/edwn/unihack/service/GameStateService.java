@@ -22,32 +22,22 @@ public class GameStateService {
 
     public void startNewHand(GameRoom room) {
         // Reset game state
-        room.setCommunityCards(new ArrayList<>());
-        room.setGameState(GameRoom.GameState.PREFLOP);
-        room.setWaitingForCards(true);
-        room.setPot(0);
-        room.setBets(new HashMap<>());
-        room.setCurrentBet(0);
-        room.setActions(new ArrayList<>());
-        room.setWinnerIds(new ArrayList<>()); // Clear winner IDs
+        room.newHand(); // Clear winner IDs
 
         // Reset player states
         for (Player player : room.getPlayers()) {
-            player.setFolded(false);
-            player.setActive(true);
-            player.setHand(new PlayerHand(new ArrayList<>()));
-            player.setLastAction("");
-            player.setHandRanking(null); // Clear hand ranking
+            player.newHand();
         }
 
         // Move the small blind position
         int smallBlindPos = room.getSmallBlindPosition();
-        if (smallBlindPos < 0 || smallBlindPos >= room.getPlayers().size()) {
+        if (smallBlindPos < 0 || smallBlindPos >= room.getPlayers().size() || room.getHandNumber() == 0) {
             smallBlindPos = 0;
         } else {
             smallBlindPos = (smallBlindPos + 1) % room.getPlayers().size();
         }
         room.setSmallBlindPosition(smallBlindPos);
+        room.setNextCardRecipientIndex(smallBlindPos);
 
         // Calculate big blind and button positions
         int bigBlindPos = (smallBlindPos + 1) % room.getPlayers().size();
@@ -109,6 +99,7 @@ public class GameStateService {
                 .timestamp(LocalDateTime.now())
                 .build();
         room.getActions().add(startAction);
+        room.setHandNumber(room.getHandNumber() + 1);
     }
 
     public void advanceToNextStage(GameRoom room, GameRoom.GameState nextState, String message) {
@@ -207,7 +198,7 @@ public class GameStateService {
         }
 
         // Log the winner
-        gameLogService.addLogAction(room, "SHOWDOWN: " + winMessage.toString());
+        gameLogService.addLogAction(room, "SHOWDOWN: " + winMessage);
 
         // Mark winner IDs in the game state
         room.setWinnerIds(winners.stream().map(Player::getId).collect(Collectors.toList()));

@@ -110,10 +110,6 @@ public class GameRoomService {
 
         // Start a new hand
         startNewHand(room);
-
-        // Notify clients
-        notifyRoomUpdate(gameCode);
-
         return true;
     }
 
@@ -184,7 +180,7 @@ public class GameRoomService {
 
     public Player addFakePlayerToRoom(String gameCode, String name) {
         GameRoom room = gameRooms.get(gameCode);
-        if (room == null || room.getPlayers().size() >= 5) {
+        if (room == null || room.getPlayers().size() >= 6) {
             return null;
         }
 
