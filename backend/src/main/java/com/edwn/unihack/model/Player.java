@@ -6,6 +6,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.ArrayList;
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -25,4 +27,12 @@ public class Player {
     private Integer lastActionAmount;
     @Builder.Default
     private boolean fake = false;
+
+    public void newHand() {
+        setFolded(false);
+        setActive(true);
+        setHand(new PlayerHand(new ArrayList<>()));
+        setLastAction("");
+        setHandRanking(null);
+    }
 }
