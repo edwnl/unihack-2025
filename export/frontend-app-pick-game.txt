@@ -1,6 +1,6 @@
 # frontend-app-pick-game Files
 
-### frontend/app/pick-game/page.tsx
+### frontend\app\pick-game\page.tsx
 
 ```tsx
 "use client";

@@ -26,68 +26,77 @@
     │           │               ├── Player.java
     │           │               ├── PlayerHand.java
     │           │           └── service
-    │           │               └── BettingService.java
-    │           │               └── CardHandlingService.java
-    │           │               └── GameLogService.java
-    │           │               └── GameRoomService.java
-    │           │               └── GameStateService.java
-    │           │               └── PokerHandEvaluator.java
-    │           │               └── PokerUtilService.java
+    │           │               ├── BettingService.java
+    │           │               ├── CardHandlingService.java
+    │           │               ├── GameLogService.java
+    │           │               ├── GameRoomService.java
+    │           │               ├── GameStateService.java
+    │           │               ├── PokerHandEvaluator.java
+    │           │               ├── PokerUtilService.java
+    │           │           └── util
+    │           │               └── eval
+    │           │                   └── Card.java
+    │           │                   └── Evaluate.java
+    │           │                   └── Hand.java
+    │           │                   └── Main.java
+    │           │                   └── Tables.java
     │       └── resources
     │           └── application.properties
 └── docker-compose.yml
 └── export
 └── frontend
-    └── .eslintrc.json
-    └── app
-        ├── layout.tsx
-        ├── page.tsx
-        ├── pick-game
-        │   ├── page.tsx
-        ├── poker
-        │   └── dealer
-        │       ├── page.tsx
-        │   └── game
-        │       ├── [id]
-        │       │   └── page.tsx
-        │   └── page.tsx
-        │   └── player
-        │       ├── page.tsx
-        │   └── waiting
-        │       └── [id]
-        │           └── page.tsx
-    └── components
-        ├── ai-advisor.tsx
-        ├── community-cards.tsx
-        ├── dealer-view.tsx
-        ├── debug-navigation.tsx
-        ├── game-actions.tsx
-        ├── player-actions.tsx
-        ├── player-hand.tsx
-        ├── player-view.tsx
-        ├── playing-card.tsx
-        ├── raise-dialog.tsx
-        ├── ui
-        │   └── button.tsx
-        │   └── card.tsx
-        │   └── dialog.tsx
-        │   └── input.tsx
-        │   └── label.tsx
-        │   └── select.tsx
-        │   └── switch.tsx
-    └── components.json
-    └── hooks
-        ├── useAzureSpeechRecognition.ts
-    └── lib
-        ├── ai-advisor-service.ts
-        ├── fuzzy-match.ts
-        ├── game-context.tsx
-        ├── name-generator.ts
-        ├── openai-service.ts
-        ├── types.ts
-        ├── utils.ts
-        ├── websocket-service.ts
-    └── next.config.js
-    └── package.json
-    └── tailwind.config.ts
-    └── tsconfig.json
+    ├── .eslintrc.json
+    ├── app
+    │   ├── layout.tsx
+    │   ├── page.tsx
+    │   ├── pick-game
+    │   │   ├── page.tsx
+    │   ├── poker
+    │   │   └── dealer
+    │   │       ├── page.tsx
+    │   │   └── game
+    │   │       ├── [id]
+    │   │       │   └── page.tsx
+    │   │   └── page.tsx
+    │   │   └── player
+    │   │       ├── page.tsx
+    │   │   └── waiting
+    │   │       └── [id]
+    │   │           └── page.tsx
+    ├── components
+    │   ├── ai-advisor.tsx
+    │   ├── community-cards.tsx
+    │   ├── dealer-view.tsx
+    │   ├── debug-navigation.tsx
+    │   ├── game-actions.tsx
+    │   ├── player-actions.tsx
+    │   ├── player-hand.tsx
+    │   ├── player-view.tsx
+    │   ├── playing-card.tsx
+    │   ├── raise-dialog.tsx
+    │   ├── ui
+    │   │   └── button.tsx
+    │   │   └── card.tsx
+    │   │   └── dialog.tsx
+    │   │   └── input.tsx
+    │   │   └── label.tsx
+    │   │   └── select.tsx
+    │   │   └── switch.tsx
+    ├── components.json
+    ├── hooks
+    │   ├── useAzureSpeechRecognition.ts
+    │   ├── useAzureSpeechSynthesis.ts
+    ├── lib
+    │   ├── ai-advisor-service.ts
+    │   ├── fuzzy-match.ts
+    │   ├── game-context.tsx
+    │   ├── name-generator.ts
+    │   ├── openai-service.ts
+    │   ├── types.ts
+    │   ├── utils.ts
+    │   ├── websocket-service.ts
+    ├── next.config.js
+    ├── package.json
+    ├── tailwind.config.ts
+    ├── tsconfig.json
+└── package.json

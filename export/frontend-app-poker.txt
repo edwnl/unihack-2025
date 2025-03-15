@@ -1,6 +1,6 @@
 # frontend-app-poker Files
 
-### frontend/app/poker/page.tsx
+### frontend\app\poker\page.tsx
 
 ```tsx
 // frontend/app/start/page.tsx

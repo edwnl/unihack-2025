@@ -1,6 +1,6 @@
 # frontend-lib Files
 
-### frontend/lib/ai-advisor-service.ts
+### frontend\lib\ai-advisor-service.ts
 
 ```ts
 // frontend/lib/ai-advisor-service.ts
@@ -476,7 +476,7 @@ export const evaluateHandStrength = (holeCards: string): HandStrength => {
 ```
 
 
-### frontend/lib/fuzzy-match.ts
+### frontend\lib\fuzzy-match.ts
 
 ```ts
 // frontend/lib/fuzzy-match.ts
@@ -679,7 +679,7 @@ function levenshteinDistance(a: string, b: string): number {
 ```
 
 
-### frontend/lib/game-context.tsx
+### frontend\lib\game-context.tsx
 
 ```tsx
 // frontend/lib/game-context.tsx
@@ -737,7 +737,7 @@ export const useGameContext = () => {
 ```
 
 
-### frontend/lib/name-generator.ts
+### frontend\lib\name-generator.ts
 
 ```ts
 export function generateRandomName(): string {
@@ -775,7 +775,7 @@ export function generateRandomName(): string {
 ```
 
 
-### frontend/lib/openai-service.ts
+### frontend\lib\openai-service.ts
 
 ```ts
 // frontend/lib/openai-service.ts
@@ -1073,7 +1073,7 @@ function extractEquity(text: string): number | undefined {
 ```
 
 
-### frontend/lib/types.ts
+### frontend\lib\types.ts
 
 ```ts
 // generate types to use for frontend
@@ -1139,7 +1139,7 @@ export type UserRole = "PLAYER" | "DEALER" | "SCANNER";
 ```
 
 
-### frontend/lib/utils.ts
+### frontend\lib\utils.ts
 
 ```ts
 import { clsx, type ClassValue } from "clsx";
@@ -1188,7 +1188,7 @@ export function getPokerPosition(
 ```
 
 
-### frontend/lib/websocket-service.ts
+### frontend\lib\websocket-service.ts
 
 ```ts
 // frontend/lib/websocket-service.ts

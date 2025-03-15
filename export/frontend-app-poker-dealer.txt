@@ -1,6 +1,6 @@
 # frontend-app-poker-dealer Files
 
-### frontend/app/poker/dealer/page.tsx
+### frontend\app\poker\dealer\page.tsx
 
 ```tsx
 "use client";

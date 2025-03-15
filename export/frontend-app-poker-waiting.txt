@@ -1,6 +1,6 @@
 # frontend-app-poker-waiting Files
 
-### frontend/app/poker/waiting/[id]/page.tsx
+### frontend\app\poker\waiting\[id]\page.tsx
 
 ```tsx
 // frontend/app/waiting/[id]/page.tsx
@@ -41,29 +41,6 @@ export default function WaitingRoomPage() {
       disconnectWebSocket();
     };
   }, [gameId, setGameRoom, userRole, router]);
-
-  // Fetch initial game state
-  useEffect(() => {
-    const fetchGameRoom = async () => {
-      try {
-        const response = await fetch(`${backendUrl}/api/game/${gameId}`);
-        if (!response.ok) {
-          throw new Error("Game room not found");
-        }
-        const data = await response.json();
-        setGameRoom(data);
-
-        // Check if game has already started
-        if (data.gameState !== "WAITING") {
-          router.push(`/poker/game/${gameId}`);
-        }
-      } catch (err) {
-        setError((err as Error).message);
-      }
-    };
-
-    fetchGameRoom();
-  }, [gameId, backendUrl, setGameRoom, userRole, router]);
 
   const handleAddFakePlayer = async () => {
     try {

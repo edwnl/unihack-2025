@@ -1,6 +1,6 @@
 # frontend-components Files
 
-### frontend/components/ai-advisor.tsx
+### frontend\components\ai-advisor.tsx
 
 ```tsx
 // frontend/components/ai-advisor.tsx
@@ -436,7 +436,7 @@ function getStrategicInsight(
 ```
 
 
-### frontend/components/community-cards.tsx
+### frontend\components\community-cards.tsx
 
 ```tsx
 // frontend/components/community-cards.tsx
@@ -489,7 +489,7 @@ export default function CommunityCards({ gameRoom }: CommunityCardsProps) {
 ```
 
 
-### frontend/components/dealer-view.tsx
+### frontend\components\dealer-view.tsx
 
 ```tsx
 // frontend/components/dealer-view.tsx
@@ -1104,7 +1104,7 @@ export default function DealerView({ gameId }: DealerViewProps) {
 ```
 
 
-### frontend/components/debug-navigation.tsx
+### frontend\components\debug-navigation.tsx
 
 ```tsx
 // frontend/components/debug-navigation.tsx
@@ -1139,7 +1139,7 @@ export default function DebugNavigation() {
 ```
 
 
-### frontend/components/game-actions.tsx
+### frontend\components\game-actions.tsx
 
 ```tsx
 // frontend/components/game-actions.tsx
@@ -1254,7 +1254,7 @@ export default function GameActions({ actions = [] }: GameActionsProps) {
 ```
 
 
-### frontend/components/player-actions.tsx
+### frontend\components\player-actions.tsx
 
 ```tsx
 // frontend/components/player-actions.tsx
@@ -1419,7 +1419,7 @@ export default function PlayerActions({
 ```
 
 
-### frontend/components/player-hand.tsx
+### frontend\components\player-hand.tsx
 
 ```tsx
 "use client";
@@ -1567,7 +1567,7 @@ export default function PlayerHand({
 ```
 
 
-### frontend/components/player-view.tsx
+### frontend\components\player-view.tsx
 
 ```tsx
 // frontend/components/player-view.tsx
@@ -1694,7 +1694,7 @@ export default function PlayerView({ gameId }: PlayerViewProps) {
 ```
 
 
-### frontend/components/playing-card.tsx
+### frontend\components\playing-card.tsx
 
 ```tsx
 // frontend/components/playing-card.tsx
@@ -1793,7 +1793,7 @@ export default function PlayingCard({
 ```
 
 
-### frontend/components/raise-dialog.tsx
+### frontend\components\raise-dialog.tsx
 
 ```tsx
 // frontend/components/raise-dialog.tsx

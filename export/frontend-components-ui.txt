@@ -1,6 +1,6 @@
 # frontend-components-ui Files
 
-### frontend/components/ui/button.tsx
+### frontend\components\ui\button.tsx
 
 ```tsx
 import * as React from "react";
@@ -64,7 +64,7 @@ export { Button, buttonVariants };
 ```
 
 
-### frontend/components/ui/card.tsx
+### frontend\components\ui\card.tsx
 
 ```tsx
 import * as React from "react";
@@ -154,7 +154,7 @@ export {
 ```
 
 
-### frontend/components/ui/dialog.tsx
+### frontend\components\ui\dialog.tsx
 
 ```tsx
 "use client";
@@ -283,7 +283,7 @@ export {
 ```
 
 
-### frontend/components/ui/input.tsx
+### frontend\components\ui\input.tsx
 
 ```tsx
 import * as React from "react";
@@ -312,7 +312,7 @@ export { Input };
 ```
 
 
-### frontend/components/ui/label.tsx
+### frontend\components\ui\label.tsx
 
 ```tsx
 "use client";
@@ -345,7 +345,7 @@ export { Label };
 ```
 
 
-### frontend/components/ui/select.tsx
+### frontend\components\ui\select.tsx
 
 ```tsx
 "use client";
@@ -511,7 +511,7 @@ export {
 ```
 
 
-### frontend/components/ui/switch.tsx
+### frontend\components\ui\switch.tsx
 
 ```tsx
 "use client";

@@ -1,6 +1,6 @@
 # frontend Files
 
-### frontend/.eslintrc.json
+### frontend\.eslintrc.json
 
 ```json
 {
@@ -10,7 +10,7 @@
 ```
 
 
-### frontend/components.json
+### frontend\components.json
 
 ```json
 {
@@ -38,7 +38,7 @@
 ```
 
 
-### frontend/next.config.js
+### frontend\next.config.js
 
 ```js
 /** @type {import('next').NextConfig} */
@@ -51,7 +51,7 @@ module.exports = nextConfig;
 ```
 
 
-### frontend/package.json
+### frontend\package.json
 
 ```json
 {
@@ -69,6 +69,7 @@ module.exports = nextConfig;
     "liang": "next lint && npx tsc --noEmit && npx prettier@3.5.3 . --write"
   },
   "dependencies": {
+    "@dotlottie/react-player": "^1.6.19",
     "@radix-ui/react-dialog": "^1.1.6",
     "@radix-ui/react-label": "^2.1.2",
     "@radix-ui/react-select": "^2.1.6",
@@ -77,6 +78,7 @@ module.exports = nextConfig;
     "@stomp/stompjs": "^7.0.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "framer-motion": "^12.5.0",
     "lucide-react": "^0.479.0",
     "microsoft-cognitiveservices-speech-sdk": "^1.42.0",
     "next": "14.2.24",
@@ -100,7 +102,7 @@ module.exports = nextConfig;
 ```
 
 
-### frontend/tailwind.config.ts
+### frontend\tailwind.config.ts
 
 ```ts
 import type { Config } from "tailwindcss";
@@ -170,7 +172,7 @@ export default config;
 ```
 
 
-### frontend/tsconfig.json
+### frontend\tsconfig.json
 
 ```json
 {
