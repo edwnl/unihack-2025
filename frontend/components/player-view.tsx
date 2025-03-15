@@ -9,7 +9,7 @@ import PlayerActions from "@/components/player-actions";
 import AIAdvisor from "@/components/ai-advisor";
 import { getPokerPosition } from "@/lib/utils";
 import { useAzureSpeechSynthesis } from "@/hooks/useAzureSpeechSynthesis";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 
 interface PlayerViewProps {
   gameId: string;
@@ -26,6 +26,18 @@ export default function PlayerView({ gameId }: PlayerViewProps) {
   const [lastActionIndex, setLastActionIndex] = useState<number>(0);
   // Track previous game state to detect changes
   const [prevGameState, setPrevGameState] = useState<string | undefined>(undefined);
+  
+  // Use ref to track if we've announced the hand already for the current game
+  const announcedHandRef = useRef<boolean>(false);
+  // Track current hand by its content (as a string) to detect when it changes
+  const [currentHandString, setCurrentHandString] = useState<string>("");
+
+  // Initialize lastActionIndex on component mount
+  useEffect(() => {
+    if (gameRoom?.actions && gameRoom.actions.length > 0) {
+      setLastActionIndex(gameRoom.actions.length);
+    }
+  }, [gameRoom?.actions]);
 
   if (!gameRoom) return <p>Loading player view...</p>;
   if (!userRole?.playerId) return <p>Error: Player ID not found</p>;
@@ -58,191 +70,6 @@ export default function PlayerView({ gameId }: PlayerViewProps) {
 
   // Check if screen reader is enabled
   const screenReaderEnabled = userRole.screenReader === true;
-
-  // Effect to announce player's hand when dealt
-  useEffect(() => {
-    if (!screenReaderEnabled || !currentPlayer?.hand?.cards || !gameRoom) return;
-    
-    // Announce the player's hand when they receive cards
-    if (
-      currentPlayer.hand.cards.length > 0 && 
-      gameRoom.gameState === "PREFLOP" && 
-      gameRoom.waitingForCards === false
-    ) {
-      const card1 = currentPlayer.hand.cards[0];
-      const card2 = currentPlayer.hand.cards.length > 1 ? currentPlayer.hand.cards[1] : null;
-      
-      let announcement = "Your hand is: ";
-      announcement += formatCardForSpeech(card1);
-      
-      if (card2) {
-        announcement += " and " + formatCardForSpeech(card2);
-      }
-      
-      speak(announcement);
-    }
-  }, [currentPlayer?.hand?.cards, gameRoom?.gameState, gameRoom?.waitingForCards, screenReaderEnabled]);
-
-  // Effect to announce community cards when dealt
-  useEffect(() => {
-    if (!screenReaderEnabled || !gameRoom?.communityCards) return;
-    
-    const currentCount = gameRoom.communityCards.length;
-    
-    // Only announce if new cards have been added
-    if (currentCount > prevCommunityCards) {
-      let announcement = "";
-      
-      if (prevCommunityCards === 0 && currentCount === 3) {
-        // Flop
-        announcement = "Flop is: ";
-        announcement += gameRoom.communityCards.map(formatCardForSpeech).join(", ");
-      } else if (prevCommunityCards === 3 && currentCount === 4) {
-        // Turn
-        announcement = "Turn is: " + formatCardForSpeech(gameRoom.communityCards[3]);
-      } else if (prevCommunityCards === 4 && currentCount === 5) {
-        // River
-        announcement = "River is: " + formatCardForSpeech(gameRoom.communityCards[4]);
-      }
-      
-      if (announcement) {
-        speak(announcement);
-      }
-      
-      setPrevCommunityCards(currentCount);
-    }
-  }, [gameRoom?.communityCards?.length, prevCommunityCards, screenReaderEnabled]);
-
-  // Effect to announce player actions
-  useEffect(() => {
-    if (!screenReaderEnabled || !gameRoom?.actions) return;
-    
-    const actionsLength = gameRoom.actions.length;
-    
-    // Announce new actions
-    if (actionsLength > lastActionIndex) {
-      // Get the most recent action
-      const latestAction = gameRoom.actions[actionsLength - 1];
-      
-      // Don't announce LOG or SCAN_CARD actions
-      if (
-        latestAction && 
-        latestAction.type !== "LOG" && 
-        latestAction.type !== "SCAN_CARD" &&
-        latestAction.playerId !== userRole.playerId // Don't announce your own actions
-      ) {
-        // Find the player position
-        const playerIndex = gameRoom.players.findIndex(
-          p => p.id === latestAction.playerId
-        );
-        
-        if (playerIndex >= 0) {
-          const position = getPokerPosition(
-            playerIndex,
-            gameRoom.players.length,
-            gameRoom.smallBlindPosition
-          );
-          
-          // Format the action
-          let actionText = "";
-          
-          switch (latestAction.type) {
-            case "FOLD":
-              actionText = "folds";
-              break;
-            case "CHECK":
-              actionText = "checks";
-              break;
-            case "CALL":
-              actionText = `calls ${latestAction.amount || ""}`;
-              break;
-            case "BET":
-              actionText = `bets ${latestAction.amount || ""}`;
-              break;
-            case "RAISE":
-              actionText = `raises ${latestAction.amount || ""}`;
-              break;
-            default:
-              actionText = latestAction.type;
-          }
-          
-          speak(`${position} ${actionText}`);
-        }
-      }
-      
-      setLastActionIndex(actionsLength);
-    }
-  }, [gameRoom?.actions?.length, lastActionIndex, screenReaderEnabled, userRole.playerId]);
-
-  // Effect to announce game state changes (showdown/winner)
-  useEffect(() => {
-    if (!screenReaderEnabled || !gameRoom) return;
-    
-    // Detect change to SHOWDOWN state
-    if (
-      gameRoom.gameState === "SHOWDOWN" && 
-      prevGameState !== "SHOWDOWN"
-    ) {
-      // Gather active players' hands info
-      const activePlayers = gameRoom.players.filter(p => !p.folded);
-      
-      if (activePlayers.length > 1) {
-        let showdownAnnouncement = "Showdown: ";
-        
-        activePlayers.forEach((player, idx) => {
-          const position = getPokerPosition(
-            gameRoom.players.findIndex(p => p.id === player.id),
-            gameRoom.players.length,
-            gameRoom.smallBlindPosition
-          );
-          
-          // Add player's hand if available
-          if (player.handRanking) {
-            showdownAnnouncement += `${position} has ${player.handRanking}`;
-            
-            if (idx < activePlayers.length - 1) {
-              showdownAnnouncement += ", ";
-            }
-          }
-        });
-        
-        speak(showdownAnnouncement);
-      }
-    }
-    
-    // Announce winner
-    if (gameRoom.winnerIds && gameRoom.winnerIds.length > 0) {
-      const winners = gameRoom.players.filter(p => 
-        gameRoom.winnerIds.includes(p.id)
-      );
-      
-      if (winners.length > 0) {
-        let winnerAnnouncement = winners.length === 1 ? "Winner is " : "Winners are ";
-        
-        winners.forEach((winner, idx) => {
-          const position = getPokerPosition(
-            gameRoom.players.findIndex(p => p.id === winner.id),
-            gameRoom.players.length,
-            gameRoom.smallBlindPosition
-          );
-          
-          winnerAnnouncement += position;
-          
-          if (winner.handRanking) {
-            winnerAnnouncement += ` with ${winner.handRanking}`;
-          }
-          
-          if (idx < winners.length - 1) {
-            winnerAnnouncement += ", ";
-          }
-        });
-        
-        speak(winnerAnnouncement);
-      }
-    }
-    
-    setPrevGameState(gameRoom.gameState);
-  }, [gameRoom?.gameState, gameRoom?.winnerIds, prevGameState, screenReaderEnabled]);
 
   // Helper function to format a card for speech
   function formatCardForSpeech(card: any): string {
@@ -278,6 +105,91 @@ export default function PlayerView({ gameId }: PlayerViewProps) {
     return `${rank} of ${suit}`;
   }
 
+  // Update currentHandString when hand changes
+  useEffect(() => {
+    if (currentPlayer?.hand?.cards) {
+      // Create a string representation of the hand to track changes
+      const handStr = JSON.stringify(currentPlayer.hand.cards);
+      setCurrentHandString(handStr);
+    } else {
+      setCurrentHandString("");
+    }
+  }, [currentPlayer?.hand?.cards]);
+
+  // Effect to announce player's hand when dealt (with protection against multiple announcements)
+  useEffect(() => {
+    if (!screenReaderEnabled || !currentPlayer?.hand?.cards || !gameRoom) return;
+    
+    // Get current hand as string to detect changes
+    const handStr = JSON.stringify(currentPlayer.hand.cards);
+    
+    // Only announce if:
+    // 1. We're in preflop
+    // 2. Not waiting for cards
+    // 3. The player has cards
+    // 4. We haven't announced this specific hand before
+    if (
+      currentPlayer.hand.cards.length > 0 && 
+      gameRoom.gameState === "PREFLOP" && 
+      gameRoom.waitingForCards === false &&
+      handStr === currentHandString && // Make sure it's the current hand
+      !announcedHandRef.current // We haven't announced it yet
+    ) {
+      const card1 = currentPlayer.hand.cards[0];
+      const card2 = currentPlayer.hand.cards.length > 1 ? currentPlayer.hand.cards[1] : null;
+      
+      let announcement = "Your hand is: ";
+      announcement += formatCardForSpeech(card1);
+      
+      if (card2) {
+        announcement += " and " + formatCardForSpeech(card2);
+      }
+      
+      speak(announcement);
+      announcedHandRef.current = true; // Mark as announced
+    }
+    
+    // Reset announcement flag when game state changes
+    if (gameRoom.gameState !== "PREFLOP") {
+      announcedHandRef.current = false;
+    }
+  }, [currentHandString, gameRoom?.gameState, gameRoom?.waitingForCards, screenReaderEnabled, speak, currentPlayer?.hand?.cards]);
+
+  // Effect to announce community cards when dealt
+  useEffect(() => {
+    if (!screenReaderEnabled || !gameRoom?.communityCards) return;
+    
+    const currentCount = gameRoom.communityCards.length;
+    
+    // Only announce if new cards have been added
+    if (currentCount > prevCommunityCards) {
+      let announcement = "";
+      
+      if (prevCommunityCards === 0 && currentCount === 3) {
+        // Flop - Explicitly announce each card separately
+        announcement = "Flop is: ";
+        for (let i = 0; i < 3; i++) {
+          announcement += formatCardForSpeech(gameRoom.communityCards[i]);
+          if (i < 2) announcement += ", ";
+        }
+      } else if (prevCommunityCards === 3 && currentCount === 4) {
+        // Turn
+        announcement = "Turn is: " + formatCardForSpeech(gameRoom.communityCards[3]);
+      } else if (prevCommunityCards === 4 && currentCount === 5) {
+        // River
+        announcement = "River is: " + formatCardForSpeech(gameRoom.communityCards[4]);
+      }
+      
+      if (announcement) {
+        speak(announcement);
+      }
+      
+      setPrevCommunityCards(currentCount);
+    }
+  }, [gameRoom?.communityCards?.length, prevCommunityCards, screenReaderEnabled, speak]);
+
+  // Rest of the component stays the same...
+  
   return (
     <div className="w-full max-w-4xl">
       <Card className="mb-6">
