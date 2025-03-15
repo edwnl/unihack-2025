@@ -1,0 +1,2209 @@
+# backend-src-main-java Files
+
+### backend/src/main/java/com/edwn/unihack/config/WebConfig.java
+
+```java
+// backend/src/main/java/com/edwn/unihack/config/WebConfig.java
+package com.edwn.unihack.config;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.web.servlet.config.annotation.CorsRegistry;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+
+@Configuration
+public class WebConfig {
+
+    @Bean
+    public WebMvcConfigurer corsConfigurer() {
+        return new WebMvcConfigurer() {
+            @Override
+            public void addCorsMappings(CorsRegistry registry) {
+                registry.addMapping("/**")  // Match all paths
+                        .allowedOrigins("*") // Allow all origins
+                        .allowedMethods("*") // Allow all methods
+                        .allowedHeaders("*") // Allow all headers
+                        .allowCredentials(false); // Must be false when allowedOrigins contains "*"
+            }
+        };
+    }
+}
+```
+
+
+### backend/src/main/java/com/edwn/unihack/config/WebSocketConfig.java
+
+```java
+// backend/src/main/java/com/edwn/unihack/config/WebSocketConfig.java
+package com.edwn.unihack.config;
+
+import org.springframework.context.annotation.Configuration;
+import org.springframework.messaging.simp.config.MessageBrokerRegistry;
+import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
+import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
+import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
+
+@Configuration
+@EnableWebSocketMessageBroker
+public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
+
+    @Override
+    public void configureMessageBroker(MessageBrokerRegistry config) {
+        config.enableSimpleBroker("/topic");
+        config.setApplicationDestinationPrefixes("/app");
+    }
+
+    @Override
+    public void registerStompEndpoints(StompEndpointRegistry registry) {
+        // Register the endpoint without SockJS first for native WebSocket
+        registry.addEndpoint("/ws-poker")
+                .setAllowedOriginPatterns("*");
+
+        // Also add SockJS fallback option
+        registry.addEndpoint("/ws-poker")
+                .setAllowedOriginPatterns("*")
+                .withSockJS();
+    }
+}
+```
+
+
+### backend/src/main/java/com/edwn/unihack/controller/GameRoomController.java
+
+```java
+// backend/src/main/java/com/edwn/unihack/controller/GameRoomController.java (updated)
+package com.edwn.unihack.controller;
+
+import com.edwn.unihack.dto.CreatePlayerRequest;
+import com.edwn.unihack.dto.GameRoomResponse;
+import com.edwn.unihack.dto.JoinRoomRequest;
+import com.edwn.unihack.model.GameRoom;
+import com.edwn.unihack.model.Player;
+import com.edwn.unihack.service.GameRoomService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.UUID;
+
+@RestController
+@RequestMapping("/api/game")
+@RequiredArgsConstructor
+public class GameRoomController {
+
+    private final GameRoomService gameRoomService;
+
+    @PostMapping("/dealer/create")
+    public ResponseEntity<GameRoomResponse> createRoom() {
+        GameRoom room = gameRoomService.createRoom();
+        String dealerId = UUID.randomUUID().toString();
+        gameRoomService.addDealerToRoom(room.getId(), dealerId);
+
+        return ResponseEntity.ok(GameRoomResponse.builder()
+                .id(room.getId())
+                .players(room.getPlayers())
+                .gameState(room.getGameState())
+                .build());
+    }
+
+    @PostMapping("/player/join")
+    public ResponseEntity<?> joinAsPlayer(@RequestBody CreatePlayerRequest request) {
+        if (request.getGameCode() == null || request.getName() == null) {
+            return ResponseEntity.badRequest().body("Game code and name are required");
+        }
+
+        Player player = gameRoomService.addPlayerToRoom(
+                request.getGameCode(),
+                request.getName(),
+                request.isOnline(),
+                request.isVisuallyImpaired()
+        );
+
+        if (player == null) {
+            return ResponseEntity.badRequest().body("Unable to join game. Room might be full or does not exist.");
+        }
+
+        return ResponseEntity.ok(player);
+    }
+
+    @PostMapping("/scanner/join")
+    public ResponseEntity<?> joinAsScanner(@RequestBody JoinRoomRequest request) {
+        if (request.getGameCode() == null) {
+            return ResponseEntity.badRequest().body("Game code is required");
+        }
+
+        String scannerId = UUID.randomUUID().toString();
+        boolean success = gameRoomService.addScannerToRoom(request.getGameCode(), scannerId);
+
+        if (!success) {
+            return ResponseEntity.badRequest().body("Unable to join game. Room might already have a scanner or does not exist.");
+        }
+
+        return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/{gameCode}")
+    public ResponseEntity<?> getRoomStatus(@PathVariable String gameCode) {
+        return gameRoomService.findRoomByCode(gameCode)
+                .map(room -> ResponseEntity.ok(GameRoomResponse.builder()
+                        .id(room.getId())
+                        .players(room.getPlayers())
+                        .gameState(room.getGameState())
+                        .waitingForCards(room.isWaitingForCards())
+                        .communityCards(room.getCommunityCards())
+                        .currentPlayerIndex(room.getCurrentPlayerIndex())
+                        .pot(room.getPot())
+                        .actions(room.getActions())
+                        .bets(room.getBets())
+                        .currentBet(room.getCurrentBet())
+                        .smallBlindPosition(room.getSmallBlindPosition())
+                        .dealerId(room.getDealerId())
+                        .winnerIds(room.getWinnerIds())
+                        .build()))
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @PostMapping("/{gameCode}/start")
+    public ResponseEntity<?> startGame(@PathVariable String gameCode) {
+        GameRoom room = gameRoomService.findRoomByCode(gameCode).orElse(null);
+
+        if (room == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        // Check minimum player count
+        if (room.getPlayers().size() < 3) {
+            return ResponseEntity.badRequest().body("At least 3 players are required to start the game.");
+        }
+
+        boolean started = gameRoomService.startGame(gameCode);
+
+        if (!started) {
+            return ResponseEntity.badRequest().body("Unable to start game. Make sure there are players and a dealer.");
+        }
+
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/{gameCode}/new-hand")
+    public ResponseEntity<?> startNewHand(@PathVariable String gameCode) {
+        return gameRoomService.findRoomByCode(gameCode)
+                .map(room -> {
+                    gameRoomService.startNewHand(room);
+                    return ResponseEntity.ok().build();
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @PostMapping("/dealer/add-fake-player")
+    public ResponseEntity<?> addFakePlayer(@RequestBody CreatePlayerRequest request) {
+        if (request.getGameCode() == null || request.getName() == null) {
+            return ResponseEntity.badRequest().body("Game code and name are required");
+        }
+
+        Player player = gameRoomService.addFakePlayerToRoom(
+                request.getGameCode(),
+                request.getName()
+        );
+
+        if (player == null) {
+            return ResponseEntity.badRequest().body("Unable to add fake player. Room might be full or does not exist.");
+        }
+
+        return ResponseEntity.ok(player);
+    }
+}
+```
+
+
+### backend/src/main/java/com/edwn/unihack/controller/GameSocketController.java
+
+```java
+// backend/src/main/java/com/edwn/unihack/controller/GameSocketController.java
+package com.edwn.unihack.controller;
+
+import com.edwn.unihack.dto.GameRoomResponse;
+import com.edwn.unihack.model.GameAction;
+import com.edwn.unihack.service.GameRoomService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.messaging.handler.annotation.DestinationVariable;
+import org.springframework.messaging.handler.annotation.MessageMapping;
+import org.springframework.messaging.handler.annotation.SendTo;
+import org.springframework.stereotype.Controller;
+
+@Controller
+@RequiredArgsConstructor
+public class GameSocketController {
+
+    private final GameRoomService gameRoomService;
+
+    @MessageMapping("/game/{gameCode}/join")
+    @SendTo("/topic/game/{gameCode}")
+    public GameRoomResponse joinGame(@DestinationVariable String gameCode) {
+        return gameRoomService.findRoomByCode(gameCode)
+                .map(room -> GameRoomResponse.builder()
+                        .id(room.getId())
+                        .players(room.getPlayers())
+                        .gameState(room.getGameState())
+                        .waitingForCards(room.isWaitingForCards())
+                        .communityCards(room.getCommunityCards())
+                        .currentPlayerIndex(room.getCurrentPlayerIndex())
+                        .pot(room.getPot())
+                        .actions(room.getActions())
+                        .bets(room.getBets())
+                        .currentBet(room.getCurrentBet())
+                        .dealerId(room.getDealerId())
+                        .build())
+                .orElse(null);
+    }
+
+    @MessageMapping("/game/{gameCode}/action")
+    public void processGameAction(@DestinationVariable String gameCode, GameAction action) {
+        // Process the action
+        gameRoomService.processAction(gameCode, action);
+    }
+}
+```
+
+
+### backend/src/main/java/com/edwn/unihack/controller/HelloController.java
+
+```java
+// backend/src/main/java/com/edwn/unihack/controller/HelloController.java
+package com.edwn.unihack.controller;
+
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/api")
+public class HelloController {
+
+    @GetMapping("/hello")
+    public String hello() {
+        return "Hello World from Spring Boot :) !!!";
+    }
+}
+```
+
+
+### backend/src/main/java/com/edwn/unihack/controller/ScannerController.java
+
+```java
+// backend/src/main/java/com/edwn/unihack/controller/ScannerController.java
+package com.edwn.unihack.controller;
+
+import com.edwn.unihack.model.Card;
+import com.edwn.unihack.service.GameRoomService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/scanner")
+@RequiredArgsConstructor
+public class ScannerController {
+
+    private final GameRoomService gameRoomService;
+
+    @PostMapping("/{gameCode}/scan")
+    public ResponseEntity<?> scanCard(@PathVariable String gameCode, @RequestBody Card card) {
+        boolean success = gameRoomService.scanCard(gameCode, card);
+
+        if (!success) {
+            return ResponseEntity.badRequest().body("Failed to scan card. Game might not exist or not be in a state accepting cards.");
+        }
+
+        return ResponseEntity.ok().build();
+    }
+}
+```
+
+
+### backend/src/main/java/com/edwn/unihack/dto/CreatePlayerRequest.java
+
+```java
+// backend/src/main/java/com/edwn/unihack/dto/CreatePlayerRequest.java
+package com.edwn.unihack.dto;
+
+import lombok.Data;
+
+@Data
+public class CreatePlayerRequest {
+    private String name;
+    private String gameCode;
+    private boolean online;
+    private boolean visuallyImpaired;
+}
+```
+
+
+### backend/src/main/java/com/edwn/unihack/dto/GameRoomResponse.java
+
+```java
+// backend/src/main/java/com/edwn/unihack/dto/GameRoomResponse.java
+package com.edwn.unihack.dto;
+
+import com.edwn.unihack.model.Card;
+import com.edwn.unihack.model.GameAction;
+import com.edwn.unihack.model.GameRoom;
+import com.edwn.unihack.model.Player;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.util.List;
+import java.util.Map;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class GameRoomResponse {
+    private String id;
+    private List<Player> players;
+    private GameRoom.GameState gameState;
+    private boolean waitingForCards;
+    private List<Card> communityCards;
+    private int currentPlayerIndex;
+    private int pot;
+    private List<GameAction> actions;
+    private Map<String, Integer> bets;
+    private int currentBet;
+    private int smallBlindPosition;
+    private String dealerId;
+    private List<String> winnerIds;
+}
+```
+
+
+### backend/src/main/java/com/edwn/unihack/dto/JoinRoomRequest.java
+
+```java
+// backend/src/main/java/com/edwn/unihack/dto/JoinRoomRequest.java
+package com.edwn.unihack.dto;
+
+import lombok.Data;
+
+@Data
+public class JoinRoomRequest {
+    private String gameCode;
+    private String role;
+}
+```
+
+
+### backend/src/main/java/com/edwn/unihack/model/Card.java
+
+```java
+// backend/src/main/java/com/edwn/unihack/model/Card.java
+package com.edwn.unihack.model;
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class Card {
+    private Suit suit;
+    private Rank rank;
+
+    public enum Suit {
+        HEARTS, DIAMONDS, CLUBS, SPADES
+    }
+
+    public enum Rank {
+        TWO, THREE, FOUR, FIVE, SIX, SEVEN, EIGHT, NINE, TEN, JACK, QUEEN, KING, ACE
+    }
+}
+```
+
+
+### backend/src/main/java/com/edwn/unihack/model/GameAction.java
+
+```java
+// backend/src/main/java/com/edwn/unihack/model/GameAction.java
+package com.edwn.unihack.model;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.time.LocalDateTime;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class GameAction {
+    private String playerId;
+    private String playerName;
+    private ActionType type;
+    private int amount;
+    private LocalDateTime timestamp;
+    private Card card; // For SCAN_CARD actions
+    private String message; // For LOG actions
+
+    public enum ActionType {
+        JOIN, LEAVE, CHECK, BET, CALL, RAISE, FOLD,
+        SCAN_CARD, DEAL_CARDS, START_HAND,
+        SMALL_BLIND, BIG_BLIND, LOG // Added new types
+    }
+}
+```
+
+
+### backend/src/main/java/com/edwn/unihack/model/GameRoom.java
+
+```java
+// backend/src/main/java/com/edwn/unihack/model/GameRoom.java (updated)
+package com.edwn.unihack.model;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.util.*;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class GameRoom {
+    private String id;
+    private List<Player> players;
+    private String dealerId;
+    private String scannerId;
+    private GameState gameState;
+    private List<Card> communityCards;
+    private List<GameAction> actions;
+    private int currentPlayerIndex;
+    private int pot;
+    private Map<String, Integer> bets; // Track bets for the current round
+    private int currentBet; // Current highest bet
+    @Builder.Default
+    private int smallBlindPosition = 0; // Track small blind position instead of dealer
+    @Builder.Default
+    private boolean waitingForCards = true;
+    @Builder.Default
+    private List<String> winnerIds = new ArrayList<>();
+
+    public static GameRoom createNew() {
+        return GameRoom.builder()
+                .id(generateGameCode())
+                .players(new ArrayList<>())
+                .communityCards(new ArrayList<>())
+                .actions(new ArrayList<>())
+                .gameState(GameState.WAITING)
+                .pot(0)
+                .bets(new HashMap<>())
+                .currentBet(0)
+                .smallBlindPosition(0) // Initialize small blind position
+                .build();
+    }
+
+    private static String generateGameCode() {
+        return UUID.randomUUID().toString().substring(0, 6).toUpperCase();
+    }
+
+    public Player getCurrentPlayer() {
+        if (players.isEmpty() || currentPlayerIndex < 0 || currentPlayerIndex >= players.size()) {
+            return null;
+        }
+        return players.get(currentPlayerIndex);
+    }
+
+    public void moveToNextPlayer() {
+        if (players.isEmpty()) return;
+
+        // Find next active player who hasn't folded
+        do {
+            currentPlayerIndex = (currentPlayerIndex + 1) % players.size();
+        } while (players.get(currentPlayerIndex).isFolded() || !players.get(currentPlayerIndex).isActive());
+    }
+
+    public enum GameState {
+        WAITING, STARTED, PREFLOP, FLOP, TURN, RIVER, SHOWDOWN, ENDED
+    }
+}
+```
+
+
+### backend/src/main/java/com/edwn/unihack/model/HandRanking.java
+
+```java
+// backend/src/main/java/com/edwn/unihack/model/HandRanking.java
+package com.edwn.unihack.model;
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class HandRanking {
+    private int rank; // 0=high card, 1=pair, 2=two pair, 3=three of a kind, 4=straight, etc.
+    private String description; // "Pair of Aces", "Full House, Kings over Nines", etc.
+}
+```
+
+
+### backend/src/main/java/com/edwn/unihack/model/Player.java
+
+```java
+// backend/src/main/java/com/edwn/unihack/model/Player.java
+package com.edwn.unihack.model;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class Player {
+    private String id;
+    private String name;
+    private boolean online;
+    private boolean visuallyImpaired;
+    private String sessionId;
+    private PlayerHand hand;
+    private int chips;
+    private boolean folded;
+    private boolean active;
+    private String handRanking;
+    private String lastAction;
+    private Integer lastActionAmount;
+    @Builder.Default
+    private boolean fake = false;
+}
+```
+
+
+### backend/src/main/java/com/edwn/unihack/model/PlayerHand.java
+
+```java
+// backend/src/main/java/com/edwn/unihack/model/PlayerHand.java
+package com.edwn.unihack.model;
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.util.List;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class PlayerHand {
+    private List<Card> cards;
+}
+```
+
+
+### backend/src/main/java/com/edwn/unihack/service/BettingService.java
+
+```java
+// backend/src/main/java/com/edwn/unihack/service/BettingService.java
+package com.edwn.unihack.service;
+
+import com.edwn.unihack.model.GameAction;
+import com.edwn.unihack.model.GameRoom;
+import com.edwn.unihack.model.Player;
+import org.springframework.stereotype.Service;
+
+import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Set;
+
+@Service
+public class BettingService {
+
+    private final GameLogService gameLogService;
+    private final GameStateService gameStateService;
+    private final CardHandlingService cardHandlingService;
+
+    public BettingService(GameLogService gameLogService,
+                          GameStateService gameStateService,
+                          CardHandlingService cardHandlingService) {
+        this.gameLogService = gameLogService;
+        this.gameStateService = gameStateService;
+        this.cardHandlingService = cardHandlingService;
+    }
+
+    public void handleCheck(GameRoom room, String playerId) {
+        // Ensure it's this player's turn
+        Player currentPlayer = room.getCurrentPlayer();
+        if (currentPlayer == null || !currentPlayer.getId().equals(playerId)) {
+            return;
+        }
+
+        // Update player's last action
+        currentPlayer.setLastAction("CHECK");
+        currentPlayer.setLastActionAmount(null);
+
+        // Move to next player
+        room.moveToNextPlayer();
+
+        // Check if round is complete
+        checkRoundCompletion(room);
+    }
+
+    public void handleBet(GameRoom room, String playerId, int amount) {
+        // Ensure it's this player's turn
+        Player currentPlayer = room.getCurrentPlayer();
+        if (currentPlayer == null || !currentPlayer.getId().equals(playerId)) {
+            return;
+        }
+
+        // Place bet
+        currentPlayer.setChips(currentPlayer.getChips() - amount);
+        room.getBets().put(playerId, amount);
+        room.setCurrentBet(amount);
+
+        // Update player's last action
+        currentPlayer.setLastAction("BET");
+        currentPlayer.setLastActionAmount(amount);
+
+        // Move to next player
+        room.moveToNextPlayer();
+
+        // Check if round is complete
+        checkRoundCompletion(room);
+    }
+
+    public void handleCall(GameRoom room, String playerId) {
+        // Ensure it's this player's turn
+        Player currentPlayer = room.getCurrentPlayer();
+        if (currentPlayer == null || !currentPlayer.getId().equals(playerId)) {
+            return;
+        }
+
+        // Get the amount needed to call
+        int currentBet = room.getCurrentBet();
+        int currentPlayerBet = room.getBets().getOrDefault(playerId, 0);
+        int amountToCall = currentBet - currentPlayerBet;
+
+        // Place call
+        if (amountToCall > 0) {
+            currentPlayer.setChips(currentPlayer.getChips() - amountToCall);
+            room.getBets().put(playerId, currentBet);
+        }
+
+        // Update player's last action
+        currentPlayer.setLastAction("CALL");
+        currentPlayer.setLastActionAmount(amountToCall);
+
+        // Move to next player
+        room.moveToNextPlayer();
+
+        // Check if round is complete
+        checkRoundCompletion(room);
+    }
+
+    public void handleRaise(GameRoom room, String playerId, int amount) {
+        // Ensure it's this player's turn
+        Player currentPlayer = room.getCurrentPlayer();
+        if (currentPlayer == null || !currentPlayer.getId().equals(playerId)) {
+            return;
+        }
+
+        // Calculate total bet (current bet + raise amount)
+        int newBet = room.getCurrentBet() + amount;
+
+        // Place raise
+        currentPlayer.setChips(currentPlayer.getChips() - newBet);
+        room.getBets().put(playerId, newBet);
+        room.setCurrentBet(newBet);
+
+        // Update player's last action
+        currentPlayer.setLastAction("RAISE");
+        currentPlayer.setLastActionAmount(amount);
+
+        // Move to next player
+        room.moveToNextPlayer();
+
+        // Check if round is complete
+        checkRoundCompletion(room);
+    }
+
+    public void handleFold(GameRoom room, String playerId) {
+        // Find the player
+        Player player = room.getPlayers().stream()
+                .filter(p -> p.getId().equals(playerId))
+                .findFirst()
+                .orElse(null);
+
+        if (player == null) return;
+
+        // Mark as folded
+        player.setFolded(true);
+
+        // Update player's last action
+        player.setLastAction("FOLD");
+        player.setLastActionAmount(null);
+
+        // If it was this player's turn, move to next
+        if (room.getCurrentPlayer() != null && room.getCurrentPlayer().getId().equals(playerId)) {
+            room.moveToNextPlayer();
+        }
+
+        // Check if round is complete or only one player left
+        checkRoundCompletion(room);
+        gameStateService.checkGameEnd(room);
+    }
+
+    private void checkRoundCompletion(GameRoom room) {
+        // Don't process if we're waiting for cards
+        if (room.isWaitingForCards()) {
+            return;
+        }
+
+        boolean roundComplete = isRoundComplete(room);
+
+        if (roundComplete) {
+            // Add LOG action
+            gameLogService.addLogAction(room, "Betting round complete in state: " + room.getGameState());
+
+            // Collect bets to pot
+            for (Integer bet : room.getBets().values()) {
+                room.setPot(room.getPot() + bet);
+            }
+            room.setBets(new HashMap<>());
+            room.setCurrentBet(0);
+
+            // Move to next stage based on current state
+            switch (room.getGameState()) {
+                case PREFLOP:
+                    gameStateService.advanceToNextStage(room, GameRoom.GameState.FLOP,
+                            "Moving to FLOP stage. Waiting for flop cards.");
+                    break;
+                case FLOP:
+                    gameStateService.advanceToNextStage(room, GameRoom.GameState.TURN,
+                            "Moving to TURN stage. Waiting for turn card.");
+                    break;
+                case TURN:
+                    gameStateService.advanceToNextStage(room, GameRoom.GameState.RIVER,
+                            "Moving to RIVER stage. Waiting for river card.");
+                    break;
+                case RIVER:
+                    gameStateService.advanceToNextStage(room, GameRoom.GameState.SHOWDOWN,
+                            "Moving to SHOWDOWN stage. Determining winner.");
+                    // Handle showdown
+                    gameStateService.handleShowdown(room);
+                    break;
+                case SHOWDOWN:
+                    gameStateService.advanceToNextStage(room, GameRoom.GameState.ENDED,
+                            "Hand complete. Waiting for dealer to start new hand.");
+                    break;
+            }
+        }
+    }
+
+    public boolean isRoundComplete(GameRoom room) {
+        if (room.isWaitingForCards()) {
+            return false;
+        }
+
+        int activePlayers = 0;
+        int targetBet = room.getCurrentBet();
+        Set<String> actedPlayerIds = new HashSet<>();
+
+        // Find the most recent betting round start
+        LocalDateTime roundStartTime = null;
+        for (int i = room.getActions().size() - 1; i >= 0; i--) {
+            GameAction action = room.getActions().get(i);
+            if (action.getType() == GameAction.ActionType.LOG &&
+                    (action.getMessage() != null &&
+                            (action.getMessage().contains("betting begins") ||
+                                    action.getMessage().contains("Pre-flop betting begins")))) {
+                roundStartTime = action.getTimestamp();
+                break;
+            }
+        }
+
+        if (roundStartTime == null) {
+            // If no round start found, use an old timestamp
+            roundStartTime = LocalDateTime.now().minusDays(1);
+        }
+
+        // Get all player actions in this round
+        for (GameAction action : room.getActions()) {
+            if (action.getTimestamp() != null &&
+                    action.getTimestamp().isAfter(roundStartTime) &&
+                    action.getPlayerId() != null) {
+
+                // Only include betting actions
+                if (action.getType() == GameAction.ActionType.CHECK ||
+                        action.getType() == GameAction.ActionType.BET ||
+                        action.getType() == GameAction.ActionType.CALL ||
+                        action.getType() == GameAction.ActionType.RAISE ||
+                        action.getType() == GameAction.ActionType.FOLD) {
+
+                    actedPlayerIds.add(action.getPlayerId());
+                }
+            }
+        }
+
+        // Special case for preflop big blind
+        boolean bigBlindSpecialCase = false;
+        Player bigBlindPlayer = null;
+
+        if (room.getGameState() == GameRoom.GameState.PREFLOP) {
+            int bigBlindPos;
+            if (room.getPlayers().size() == 2) {
+                bigBlindPos = (room.getSmallBlindPosition()) % 2;
+            } else {
+                bigBlindPos = (room.getSmallBlindPosition() + 1) % room.getPlayers().size();
+            }
+
+            if (bigBlindPos < room.getPlayers().size()) {
+                bigBlindPlayer = room.getPlayers().get(bigBlindPos);
+
+                // Check if BB has taken an action other than posting the blind
+                boolean bbHasActed = actedPlayerIds.contains(bigBlindPlayer.getId());
+
+                // If no one has raised (current bet = BB amount) and BB hasn't acted, they need to act
+                bigBlindSpecialCase = !bbHasActed && targetBet == 10;
+            }
+        }
+
+        // Count active players and check if they've all acted and matched the bet
+        for (Player player : room.getPlayers()) {
+            if (player.isFolded() || !player.isActive()) continue;
+
+            activePlayers++;
+            int playerBet = room.getBets().getOrDefault(player.getId(), 0);
+
+            // Check if player hasn't matched the current bet
+            if (playerBet < targetBet) {
+                return false;
+            }
+
+            // Check if player hasn't acted this round
+            if (!actedPlayerIds.contains(player.getId())) {
+                // Special case for BB who can check if no raises
+                if (bigBlindSpecialCase && bigBlindPlayer != null &&
+                        player.getId().equals(bigBlindPlayer.getId())) {
+                    return false;
+                } else if (targetBet == 0) {
+                    // If bet is 0, everyone must act
+                    return false;
+                }
+                // If there's a bet and player hasn't acted, they must have folded or are already all-in
+            }
+        }
+
+        // If we have only one active player, round is complete
+        return activePlayers <= 1 || !actedPlayerIds.isEmpty();
+    }
+}
+```
+
+
+### backend/src/main/java/com/edwn/unihack/service/CardHandlingService.java
+
+```java
+// backend/src/main/java/com/edwn/unihack/service/CardHandlingService.java
+package com.edwn.unihack.service;
+
+import com.edwn.unihack.model.*;
+import org.springframework.stereotype.Service;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+
+@Service
+public class CardHandlingService {
+
+    private final GameLogService gameLogService;
+    private final GameStateService gameStateService;
+
+    public CardHandlingService(GameLogService gameLogService, GameStateService gameStateService) {
+        this.gameLogService = gameLogService;
+        this.gameStateService = gameStateService;
+    }
+
+    public void handleCardScan(GameRoom room, Card card) {
+        if (card == null) return;
+
+        // Log the card scan
+        gameLogService.addLogAction(room, "Card scanned: " + card.getRank() + " of " + card.getSuit() + " in state: " + room.getGameState() + ", waiting for cards: " + room.isWaitingForCards());
+
+        // Only process card scans when we're waiting for cards
+        if (!room.isWaitingForCards()) {
+            gameLogService.addLogAction(room, "ERROR: Card scanned while not waiting for cards. Current state: " + room.getGameState());
+            return;
+        }
+
+        // Process the card based on the current game state
+        switch (room.getGameState()) {
+            case PREFLOP:
+                handlePreflopCardScan(room, card);
+                break;
+            case FLOP:
+                handleFlopCardScan(room, card);
+                break;
+            case TURN:
+                handleTurnCardScan(room, card);
+                break;
+            case RIVER:
+                handleRiverCardScan(room, card);
+                break;
+        }
+    }
+
+    private void handlePreflopCardScan(GameRoom room, Card card) {
+        // Assign card to a player
+        assignCardToPlayer(room, card);
+        updatePlayerHandRankings(room);
+
+        // Check if all players have their cards
+        boolean allPlayersHaveCards = true;
+        for (Player player : room.getPlayers()) {
+            if (!player.isActive() || player.isFolded()) continue;
+
+            if (player.getHand() == null || player.getHand().getCards().size() < 2) {
+                allPlayersHaveCards = false;
+                break;
+            }
+        }
+
+        // If all players have their cards, start preflop betting
+        if (allPlayersHaveCards) {
+            // No longer waiting for cards
+            room.setWaitingForCards(false);
+
+            // In a 3+ player game, action starts with UTG (first player left of BB)
+            int bigBlindPos = (room.getSmallBlindPosition() + 1) % room.getPlayers().size();
+            int startPos = (bigBlindPos + 1) % room.getPlayers().size();
+
+            // Find the first active player from UTG
+            for (int i = 0; i < room.getPlayers().size(); i++) {
+                int pos = (startPos + i) % room.getPlayers().size();
+                if (!room.getPlayers().get(pos).isFolded() && room.getPlayers().get(pos).isActive()) {
+                    room.setCurrentPlayerIndex(pos);
+                    break;
+                }
+            }
+
+            gameLogService.addLogAction(room, "All players have cards. Pre-flop betting begins. UTG to act first.");
+        }
+    }
+
+    private void handleFlopCardScan(GameRoom room, Card card) {
+        // Add to community cards
+        room.getCommunityCards().add(card);
+        updatePlayerHandRankings(room);
+
+        // Log the flop development
+        gameLogService.addLogAction(room, "Flop card " + room.getCommunityCards().size() + "/3: " + card.getRank() + " of " + card.getSuit());
+
+        // If we have 3 community cards, start flop betting
+        if (room.getCommunityCards().size() == 3) {
+            // No longer waiting for cards
+            room.setWaitingForCards(false);
+            updatePlayerHandRankings(room);
+
+            // Reset bets for the new round
+            room.setBets(new HashMap<>());
+            room.setCurrentBet(0);
+
+            // Set first active player after the small blind
+            int startPos = room.getSmallBlindPosition();
+            for (int i = 0; i < room.getPlayers().size(); i++) {
+                int pos = (startPos + i) % room.getPlayers().size();
+                if (!room.getPlayers().get(pos).isFolded() && room.getPlayers().get(pos).isActive()) {
+                    room.setCurrentPlayerIndex(pos);
+                    break;
+                }
+            }
+
+            gameLogService.addLogAction(room, "Flop complete. Flop betting begins.");
+        }
+    }
+
+    private void handleTurnCardScan(GameRoom room, Card card) {
+        // Add to community cards
+        room.getCommunityCards().add(card);
+        updatePlayerHandRankings(room);
+
+        // No longer waiting for cards after the turn card is dealt
+        room.setWaitingForCards(false);
+
+        // Log the turn card
+        gameLogService.addLogAction(room, "Turn card: " + card.getRank() + " of " + card.getSuit());
+
+        // Reset bets for the new round
+        room.setBets(new HashMap<>());
+        room.setCurrentBet(0);
+
+        // Set first active player to small blind
+        int turnStartPos = room.getSmallBlindPosition();
+        for (int i = 0; i < room.getPlayers().size(); i++) {
+            int pos = (turnStartPos + i) % room.getPlayers().size();
+            if (!room.getPlayers().get(pos).isFolded() && room.getPlayers().get(pos).isActive()) {
+                room.setCurrentPlayerIndex(pos);
+                break;
+            }
+        }
+
+        // Log betting begins
+        gameLogService.addLogAction(room, "Turn betting begins.");
+    }
+
+    private void handleRiverCardScan(GameRoom room, Card card) {
+        // Add to community cards
+        room.getCommunityCards().add(card);
+        updatePlayerHandRankings(room);
+
+        // No longer waiting for cards after the river card is dealt
+        room.setWaitingForCards(false);
+
+        // Log the river card
+        gameLogService.addLogAction(room, "River card: " + card.getRank() + " of " + card.getSuit());
+
+        // Reset bets for the new round
+        room.setBets(new HashMap<>());
+        room.setCurrentBet(0);
+
+        // Set first active player to small blind
+        int riverStartPos = room.getSmallBlindPosition();
+        for (int i = 0; i < room.getPlayers().size(); i++) {
+            int pos = (riverStartPos + i) % room.getPlayers().size();
+            if (!room.getPlayers().get(pos).isFolded() && room.getPlayers().get(pos).isActive()) {
+                room.setCurrentPlayerIndex(pos);
+                break;
+            }
+        }
+
+        // Log betting begins
+        gameLogService.addLogAction(room, "River betting begins.");
+    }
+
+    private void assignCardToPlayer(GameRoom room, Card card) {
+        // Find player with the fewest cards
+        Player targetPlayer = null;
+        int minCardCount = Integer.MAX_VALUE;
+
+        for (Player player : room.getPlayers()) {
+            if (!player.isActive()) continue;
+
+            // Initialize hand if null
+            if (player.getHand() == null) {
+                player.setHand(new PlayerHand(new ArrayList<>()));
+            }
+
+            // Get card count
+            int cardCount = player.getHand().getCards().size();
+            if (cardCount < minCardCount) {
+                minCardCount = cardCount;
+                targetPlayer = player;
+            }
+        }
+
+        // Assign card to player
+        if (targetPlayer != null && minCardCount < 2) {
+            if (targetPlayer.getHand() == null) {
+                targetPlayer.setHand(new PlayerHand(new ArrayList<>()));
+            }
+            targetPlayer.getHand().getCards().add(card);
+
+            // Add LOG action for debugging
+            gameLogService.addLogAction(room, "Card dealt to " + targetPlayer.getName() + ": " + card.getRank() + " of " + card.getSuit());
+        }
+    }
+
+    public void updatePlayerHandRankings(GameRoom room) {
+        // Only evaluate hands if we have at least one community card
+        if (room.getCommunityCards() == null || room.getCommunityCards().isEmpty()) {
+            return;
+        }
+
+        // Evaluate each active player's hand
+        for (Player player : room.getPlayers()) {
+            if (player.isActive() && !player.isFolded() && player.getHand() != null && player.getHand().getCards() != null) {
+                HandRanking handRanking = PokerHandEvaluator.evaluateHand(player, room.getCommunityCards());
+                player.setHandRanking(handRanking.getDescription());
+            }
+        }
+    }
+}
+```
+
+
+### backend/src/main/java/com/edwn/unihack/service/GameLogService.java
+
+```java
+// backend/src/main/java/com/edwn/unihack/service/GameLogService.java
+package com.edwn.unihack.service;
+
+import com.edwn.unihack.model.GameAction;
+import com.edwn.unihack.model.GameRoom;
+import org.springframework.stereotype.Service;
+
+import java.time.LocalDateTime;
+
+@Service
+public class GameLogService {
+
+    public void addLogAction(GameRoom room, String message) {
+        GameAction logAction = GameAction.builder()
+                .type(GameAction.ActionType.LOG)
+                .message(message)
+                .timestamp(LocalDateTime.now())
+                .build();
+        room.getActions().add(logAction);
+    }
+
+    public void addLogAction(GameRoom room, String message, String playerId, String playerName) {
+        GameAction logAction = GameAction.builder()
+                .type(GameAction.ActionType.LOG)
+                .message(message)
+                .playerId(playerId)
+                .playerName(playerName)
+                .timestamp(LocalDateTime.now())
+                .build();
+        room.getActions().add(logAction);
+    }
+}
+```
+
+
+### backend/src/main/java/com/edwn/unihack/service/GameRoomService.java
+
+```java
+package com.edwn.unihack.service;
+
+import com.edwn.unihack.model.Card;
+import com.edwn.unihack.model.GameAction;
+import com.edwn.unihack.model.GameRoom;
+import com.edwn.unihack.model.Player;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.stereotype.Service;
+
+import java.time.LocalDateTime;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
+@Service
+public class GameRoomService {
+    private final Map<String, GameRoom> gameRooms = new ConcurrentHashMap<>();
+    private final SimpMessagingTemplate messagingTemplate;
+    private final GameStateService gameStateService;
+    private final CardHandlingService cardHandlingService;
+    private final BettingService bettingService;
+    private final GameLogService gameLogService;
+
+    public GameRoomService(SimpMessagingTemplate messagingTemplate,
+                           GameStateService gameStateService,
+                           CardHandlingService cardHandlingService,
+                           BettingService bettingService,
+                           GameLogService gameLogService) {
+        this.messagingTemplate = messagingTemplate;
+        this.gameStateService = gameStateService;
+        this.cardHandlingService = cardHandlingService;
+        this.bettingService = bettingService;
+        this.gameLogService = gameLogService;
+    }
+
+    public GameRoom createRoom() {
+        GameRoom room = GameRoom.createNew();
+        gameRooms.put(room.getId(), room);
+        return room;
+    }
+
+    public Optional<GameRoom> findRoomByCode(String code) {
+        return Optional.ofNullable(gameRooms.get(code));
+    }
+
+    public boolean scanCard(String gameCode, Card card) {
+        GameRoom room = gameRooms.get(gameCode);
+        if (room == null) {
+            return false;
+        }
+
+        // Create a SCAN_CARD action
+        GameAction scanAction = GameAction.builder()
+                .type(GameAction.ActionType.SCAN_CARD)
+                .card(card)
+                .timestamp(LocalDateTime.now())
+                .build();
+
+        // Process the card scan
+        processAction(gameCode, scanAction);
+        return true;
+    }
+
+    public Player addPlayerToRoom(String gameCode, String name, boolean online, boolean visuallyImpaired) {
+        GameRoom room = gameRooms.get(gameCode);
+        if (room == null || room.getPlayers().size() >= 5) {
+            return null;
+        }
+
+        Player player = Player.builder()
+                .id(UUID.randomUUID().toString())
+                .name(name)
+                .online(online)
+                .visuallyImpaired(visuallyImpaired)
+                .chips(1000) // Starting chips
+                .active(true)
+                .folded(false)
+                .build();
+
+        room.getPlayers().add(player);
+        return player;
+    }
+
+    public boolean addDealerToRoom(String gameCode, String dealerId) {
+        GameRoom room = gameRooms.get(gameCode);
+        if (room == null || room.getDealerId() != null) {
+            return false;
+        }
+
+        room.setDealerId(dealerId);
+        return true;
+    }
+
+    public boolean addScannerToRoom(String gameCode, String scannerId) {
+        GameRoom room = gameRooms.get(gameCode);
+        if (room == null || room.getScannerId() != null) {
+            return false;
+        }
+
+        room.setScannerId(scannerId);
+        return true;
+    }
+
+    public boolean startGame(String gameCode) {
+        GameRoom room = gameRooms.get(gameCode);
+        if (room == null || room.getPlayers().isEmpty() || room.getDealerId() == null) {
+            return false;
+        }
+
+        // Start a new hand
+        startNewHand(room);
+
+        // Notify clients
+        notifyRoomUpdate(gameCode);
+
+        return true;
+    }
+
+    public void startNewHand(GameRoom room) {
+        gameStateService.startNewHand(room);
+        notifyRoomUpdate(room.getId());
+    }
+
+    public void processAction(String gameCode, GameAction action) {
+        GameRoom room = findRoomByCode(gameCode).orElse(null);
+        if (room == null) return;
+
+        // Check if we're waiting for cards - only allow certain actions
+        if (room.isWaitingForCards() &&
+                action.getType() != GameAction.ActionType.SCAN_CARD &&
+                action.getType() != GameAction.ActionType.START_HAND &&
+                action.getType() != GameAction.ActionType.LOG) {
+
+            // Add a LOG action indicating action not allowed
+            gameLogService.addLogAction(room, "ERROR: Player action '" + action.getType() +
+                    "' attempted while waiting for cards. Action ignored.");
+
+            // Notify all clients about the update
+            notifyRoomUpdate(gameCode);
+
+            return;
+        }
+
+        // Add the action to history
+        action.setTimestamp(LocalDateTime.now());
+        room.getActions().add(action);
+
+        // Process based on action type
+        switch (action.getType()) {
+            case SCAN_CARD:
+                cardHandlingService.handleCardScan(room, action.getCard());
+                break;
+            case CHECK:
+                bettingService.handleCheck(room, action.getPlayerId());
+                break;
+            case BET:
+                bettingService.handleBet(room, action.getPlayerId(), action.getAmount());
+                break;
+            case CALL:
+                bettingService.handleCall(room, action.getPlayerId());
+                break;
+            case RAISE:
+                bettingService.handleRaise(room, action.getPlayerId(), action.getAmount());
+                break;
+            case FOLD:
+                bettingService.handleFold(room, action.getPlayerId());
+                break;
+            case START_HAND:
+                startNewHand(room);
+                break;
+        }
+
+        // Notify all clients about the update
+        notifyRoomUpdate(gameCode);
+    }
+
+    private void notifyRoomUpdate(String gameCode) {
+        GameRoom room = gameRooms.get(gameCode);
+        if (room != null) {
+            messagingTemplate.convertAndSend("/topic/game/" + gameCode, room);
+        }
+    }
+
+    public Player addFakePlayerToRoom(String gameCode, String name) {
+        GameRoom room = gameRooms.get(gameCode);
+        if (room == null || room.getPlayers().size() >= 5) {
+            return null;
+        }
+
+        Player player = Player.builder()
+                .id(UUID.randomUUID().toString())
+                .name(name)
+                .online(false)
+                .visuallyImpaired(false)
+                .chips(1000) // Starting chips
+                .active(true)
+                .folded(false)
+                .fake(true)  // This is a fake player
+                .build();
+
+        room.getPlayers().add(player);
+
+        // Create a JOIN action
+        GameAction joinAction = GameAction.builder()
+                .playerId(player.getId())
+                .playerName(player.getName())
+                .type(GameAction.ActionType.JOIN)
+                .timestamp(LocalDateTime.now())
+                .build();
+        room.getActions().add(joinAction);
+
+        // Add a LOG action
+        gameLogService.addLogAction(room, "Fake player '" + name + "' added to the game");
+
+        // Notify all clients about the update
+        notifyRoomUpdate(gameCode);
+
+        return player;
+    }
+}
+```
+
+
+### backend/src/main/java/com/edwn/unihack/service/GameStateService.java
+
+```java
+// backend/src/main/java/com/edwn/unihack/service/GameStateService.java
+package com.edwn.unihack.service;
+
+import com.edwn.unihack.model.*;
+import org.springframework.stereotype.Service;
+
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+@Service
+public class GameStateService {
+
+    private final GameLogService gameLogService;
+
+    public GameStateService(GameLogService gameLogService) {
+        this.gameLogService = gameLogService;
+    }
+
+    public void startNewHand(GameRoom room) {
+        // Reset game state
+        room.setCommunityCards(new ArrayList<>());
+        room.setGameState(GameRoom.GameState.PREFLOP);
+        room.setWaitingForCards(true);
+        room.setPot(0);
+        room.setBets(new HashMap<>());
+        room.setCurrentBet(0);
+        room.setActions(new ArrayList<>());
+        room.setWinnerIds(new ArrayList<>()); // Clear winner IDs
+
+        // Reset player states
+        for (Player player : room.getPlayers()) {
+            player.setFolded(false);
+            player.setActive(true);
+            player.setHand(new PlayerHand(new ArrayList<>()));
+            player.setLastAction("");
+            player.setHandRanking(null); // Clear hand ranking
+        }
+
+        // Move the small blind position
+        int smallBlindPos = room.getSmallBlindPosition();
+        if (smallBlindPos < 0 || smallBlindPos >= room.getPlayers().size()) {
+            smallBlindPos = 0;
+        } else {
+            smallBlindPos = (smallBlindPos + 1) % room.getPlayers().size();
+        }
+        room.setSmallBlindPosition(smallBlindPos);
+
+        // Calculate big blind and button positions
+        int bigBlindPos = (smallBlindPos + 1) % room.getPlayers().size();
+        int buttonPos = (smallBlindPos - 1 + room.getPlayers().size()) % room.getPlayers().size();
+
+        // Get small blind and big blind players
+        Player smallBlindPlayer = room.getPlayers().get(smallBlindPos);
+        Player bigBlindPlayer = room.getPlayers().get(bigBlindPos);
+        Player buttonPlayer = room.getPlayers().get(buttonPos);
+
+        // Set initial blind amounts
+        int smallBlindAmount = 5;
+        int bigBlindAmount = 10;
+
+        // Collect small blind
+        smallBlindPlayer.setChips(smallBlindPlayer.getChips() - smallBlindAmount);
+        smallBlindPlayer.setLastAction("SMALL_BLIND");
+        smallBlindPlayer.setLastActionAmount(smallBlindAmount);
+        room.getBets().put(smallBlindPlayer.getId(), smallBlindAmount);
+
+        // Add small blind action
+        GameAction smallBlindAction = GameAction.builder()
+                .playerId(smallBlindPlayer.getId())
+                .playerName(smallBlindPlayer.getName())
+                .type(GameAction.ActionType.SMALL_BLIND)
+                .amount(smallBlindAmount)
+                .timestamp(LocalDateTime.now())
+                .build();
+        room.getActions().add(smallBlindAction);
+
+        // Collect big blind
+        bigBlindPlayer.setChips(bigBlindPlayer.getChips() - bigBlindAmount);
+        bigBlindPlayer.setLastAction("BIG_BLIND");
+        bigBlindPlayer.setLastActionAmount(bigBlindAmount);
+        room.getBets().put(bigBlindPlayer.getId(), bigBlindAmount);
+        room.setCurrentBet(bigBlindAmount);
+
+        // Add big blind action
+        GameAction bigBlindAction = GameAction.builder()
+                .playerId(bigBlindPlayer.getId())
+                .playerName(bigBlindPlayer.getName())
+                .type(GameAction.ActionType.BIG_BLIND)
+                .amount(bigBlindAmount)
+                .timestamp(LocalDateTime.now())
+                .build();
+        room.getActions().add(bigBlindAction);
+
+        // Log hand info
+        String handInfo = "Button: " + buttonPlayer.getName() +
+                ", SB: " + smallBlindPlayer.getName() +
+                ", BB: " + bigBlindPlayer.getName();
+
+        // Add a LOG action
+        gameLogService.addLogAction(room, "New hand started. " + handInfo + ". Waiting for cards to be dealt.");
+
+        // Add a START_HAND action
+        GameAction startAction = GameAction.builder()
+                .type(GameAction.ActionType.START_HAND)
+                .timestamp(LocalDateTime.now())
+                .build();
+        room.getActions().add(startAction);
+    }
+
+    public void advanceToNextStage(GameRoom room, GameRoom.GameState nextState, String message) {
+        room.setGameState(nextState);
+
+        if (nextState != GameRoom.GameState.SHOWDOWN && nextState != GameRoom.GameState.ENDED) {
+            room.setWaitingForCards(true);
+        }
+
+        // Log state change
+        gameLogService.addLogAction(room, message);
+
+        // Always reset the current player to the first active player after dealer
+        if (nextState != GameRoom.GameState.SHOWDOWN && nextState != GameRoom.GameState.ENDED) {
+            // Find the first active player after the dealer
+            int startPos = (room.getSmallBlindPosition()) % room.getPlayers().size();
+            for (int i = 0; i < room.getPlayers().size(); i++) {
+                int pos = (startPos + i) % room.getPlayers().size();
+                if (!room.getPlayers().get(pos).isFolded() && room.getPlayers().get(pos).isActive()) {
+                    room.setCurrentPlayerIndex(pos);
+                    break;
+                }
+            }
+        }
+    }
+
+    public int getDealerPosition(GameRoom room) {
+        if (room.getPlayers().size() <= 1) return 0;
+
+        // In heads-up, the dealer is the small blind
+        if (room.getPlayers().size() == 2) return room.getSmallBlindPosition();
+
+        // Otherwise, dealer is one position before small blind
+        return (room.getSmallBlindPosition() - 1 + room.getPlayers().size()) % room.getPlayers().size();
+    }
+
+    public void handleShowdown(GameRoom room) {
+        List<Player> activePlayers = room.getPlayers().stream()
+                .filter(p -> p.isActive() && !p.isFolded())
+                .collect(Collectors.toList());
+
+        if (activePlayers.isEmpty()) {
+            // No active players (shouldn't happen), log the issue
+            gameLogService.addLogAction(room, "Error: No active players at showdown!");
+            return;
+        }
+
+        // Evaluate all hands
+        StringBuilder handReveal = new StringBuilder("SHOWDOWN - Revealing hands:\n");
+
+        // Map to store player's hand evaluation
+        Map<String, HandRanking> handRankings = new HashMap<>();
+
+        for (Player player : activePlayers) {
+            // Evaluate hand
+            HandRanking handRanking = PokerHandEvaluator.evaluateHand(player, room.getCommunityCards());
+            handRankings.put(player.getId(), handRanking);
+
+            // Set the hand ranking description on the player
+            player.setHandRanking(handRanking.getDescription());
+
+            // Add to log message
+            if (player.getHand() != null && player.getHand().getCards() != null) {
+                StringBuilder handDesc = new StringBuilder();
+                for (Card card : player.getHand().getCards()) {
+                    handDesc.append(card.getRank()).append(" of ").append(card.getSuit()).append(", ");
+                }
+                String handString = handDesc.toString();
+                if (handString.endsWith(", ")) {
+                    handString = handString.substring(0, handString.length() - 2);
+                }
+
+                handReveal.append(player.getName())
+                        .append(": ")
+                        .append(handString)
+                        .append(" - ")
+                        .append(handRanking.getDescription())
+                        .append("\n");
+            }
+        }
+
+        // Log all revealed hands
+        gameLogService.addLogAction(room, handReveal.toString());
+
+        // Determine winner(s) using proper hand comparison
+        List<Player> winners = new ArrayList<>();
+        Player bestPlayer = null;
+        HandRanking bestHandRanking = null;
+
+        for (Player player : activePlayers) {
+            HandRanking handRanking = handRankings.get(player.getId());
+
+            if (bestPlayer == null || bestHandRanking == null) {
+                // First player, initialize as best
+                bestPlayer = player;
+                bestHandRanking = handRanking;
+                winners.add(player);
+            } else {
+                // Compare current player's hand with the best hand so far
+                int comparison = PokerHandEvaluator.compareHands(handRanking, bestHandRanking);
+
+                if (comparison > 0) {
+                    // Current player has better hand
+                    winners.clear();
+                    winners.add(player);
+                    bestPlayer = player;
+                    bestHandRanking = handRanking;
+                } else if (comparison == 0) {
+                    // Tie - add as a co-winner
+                    winners.add(player);
+                }
+                // If comparison < 0, current player has worse hand, so ignore
+            }
+        }
+
+        // Split pot among winners
+        int winAmount = room.getPot() / winners.size();
+        StringBuilder winMessage = new StringBuilder();
+
+        for (Player winner : winners) {
+            winner.setChips(winner.getChips() + winAmount);
+            winMessage.append(winner.getName()).append(" wins ").append(winAmount).append(" chips with ").append(winner.getHandRanking()).append(". ");
+        }
+
+        // Log the winner
+        gameLogService.addLogAction(room, "SHOWDOWN: " + winMessage.toString());
+
+        // Mark winner IDs in the game state
+        room.setWinnerIds(winners.stream().map(Player::getId).collect(Collectors.toList()));
+
+        // Reset the pot
+        room.setPot(0);
+    }
+
+    public void checkGameEnd(GameRoom room) {
+        // Count active players who haven't folded
+        long activePlayers = room.getPlayers().stream()
+                .filter(p -> p.isActive() && !p.isFolded())
+                .count();
+
+        if (activePlayers <= 1) {
+            // Game is over, move to ended state
+            room.setGameState(GameRoom.GameState.ENDED);
+
+            // Award pot to last player standing
+            Player winner = room.getPlayers().stream()
+                    .filter(p -> p.isActive() && !p.isFolded())
+                    .findFirst()
+                    .orElse(null);
+
+            if (winner != null) {
+                winner.setChips(winner.getChips() + room.getPot());
+                room.setPot(0);
+
+                // Add winner to winnerIds
+                List<String> winnerIds = new ArrayList<>();
+                winnerIds.add(winner.getId());
+                room.setWinnerIds(winnerIds);
+
+                gameLogService.addLogAction(room, winner.getName() + " wins " + room.getPot() + " chips as the last player standing.");
+            }
+        }
+    }
+}
+```
+
+
+### backend/src/main/java/com/edwn/unihack/service/PokerHandEvaluator.java
+
+```java
+package com.edwn.unihack.service;
+
+import com.edwn.unihack.model.Card;
+import com.edwn.unihack.model.HandRanking;
+import com.edwn.unihack.model.Player;
+
+import java.util.*;
+import java.util.stream.Collectors;
+
+public class PokerHandEvaluator {
+
+    // Get hand ranking and description
+    public static HandRanking evaluateHand(Player player, List<Card> communityCards) {
+        // If player has no hand or cards, return nothing
+        if (player == null || player.getHand() == null || player.getHand().getCards() == null ||
+                player.getHand().getCards().size() < 2) {
+            return new HandRanking(0, "Invalid Hand");
+        }
+
+        // If no community cards, can't evaluate fully
+        if (communityCards == null || communityCards.isEmpty()) {
+            return new HandRanking(0, "Waiting for community cards");
+        }
+
+        // Combine player's hole cards with community cards
+        List<Card> allCards = new ArrayList<>(player.getHand().getCards());
+        allCards.addAll(communityCards);
+
+        // Sort cards by rank in descending order for easier evaluation
+        List<Card> sortedCards = allCards.stream()
+                .sorted(Comparator.comparingInt(c -> getRankValue(((Card) c).getRank())).reversed())
+                .toList();
+
+        // Count occurrences of each rank
+        Map<Card.Rank, Integer> rankCounts = new HashMap<>();
+        for (Card card : sortedCards) {
+            rankCounts.put(card.getRank(), rankCounts.getOrDefault(card.getRank(), 0) + 1);
+        }
+
+        // Count occurrences of each suit
+        Map<Card.Suit, Integer> suitCounts = new HashMap<>();
+        for (Card card : sortedCards) {
+            suitCounts.put(card.getSuit(), suitCounts.getOrDefault(card.getSuit(), 0) + 1);
+        }
+
+        // Check for flush
+        boolean hasFlush = false;
+        Card.Suit flushSuit = null;
+        for (Map.Entry<Card.Suit, Integer> entry : suitCounts.entrySet()) {
+            if (entry.getValue() >= 5) {
+                hasFlush = true;
+                flushSuit = entry.getKey();
+                break;
+            }
+        }
+
+        // Check for straight
+        boolean hasStraight = false;
+        Card.Rank straightHighCard = null;
+        List<Integer> distinctRankValues = sortedCards.stream()
+                .map(c -> getRankValue(c.getRank()))
+                .distinct()
+                .sorted(Comparator.reverseOrder())
+                .collect(Collectors.toList());
+
+        // Special case for A-5 straight
+        if (distinctRankValues.contains(14) && // Ace
+                distinctRankValues.contains(2) &&
+                distinctRankValues.contains(3) &&
+                distinctRankValues.contains(4) &&
+                distinctRankValues.contains(5)) {
+            hasStraight = true;
+            straightHighCard = Card.Rank.FIVE; // A-5 straight, 5 high
+        } else {
+            // Check for 5 consecutive ranks
+            for (int i = 0; i < distinctRankValues.size() - 4; i++) {
+                if (distinctRankValues.get(i) == distinctRankValues.get(i + 4) + 4) {
+                    hasStraight = true;
+                    straightHighCard = getRankFromValue(distinctRankValues.get(i));
+                    break;
+                }
+            }
+        }
+
+        // Check for straight flush
+        if (hasFlush && hasStraight) {
+            // Get cards of the flush suit
+            Card.Suit finalFlushSuit1 = flushSuit;
+            List<Card> flushCards = sortedCards.stream()
+                    .filter(c -> c.getSuit() == finalFlushSuit1)
+                    .toList();
+
+            List<Integer> flushRankValues = flushCards.stream()
+                    .map(c -> getRankValue(c.getRank()))
+                    .distinct()
+                    .sorted(Comparator.reverseOrder())
+                    .collect(Collectors.toList());
+
+            // Check for straight in flush cards
+            boolean hasStraightFlush = false;
+            Card.Rank straightFlushHighCard = null;
+
+            // Special case for A-5 straight flush
+            if (flushRankValues.contains(14) && // Ace
+                    flushRankValues.contains(2) &&
+                    flushRankValues.contains(3) &&
+                    flushRankValues.contains(4) &&
+                    flushRankValues.contains(5)) {
+                hasStraightFlush = true;
+                straightFlushHighCard = Card.Rank.FIVE; // A-5 straight, 5 high
+            } else {
+                // Check for 5 consecutive ranks
+                for (int i = 0; i < flushRankValues.size() - 4; i++) {
+                    if (flushRankValues.get(i) == flushRankValues.get(i + 4) + 4) {
+                        hasStraightFlush = true;
+                        straightFlushHighCard = getRankFromValue(flushRankValues.get(i));
+                        break;
+                    }
+                }
+            }
+
+            if (hasStraightFlush) {
+                // Check for royal flush (A-K-Q-J-10 of same suit)
+                if (getRankValue(straightFlushHighCard) == 14) {
+                    return new HandRanking(9, "Royal Flush");
+                }
+                return new HandRanking(8, "Straight Flush, " + getReadableRank(straightFlushHighCard) + " high");
+            }
+        }
+
+        // Check for four of a kind
+        for (Map.Entry<Card.Rank, Integer> entry : rankCounts.entrySet()) {
+            if (entry.getValue() == 4) {
+                // Find kicker
+                Card.Rank kicker = sortedCards.stream()
+                        .filter(c -> c.getRank() != entry.getKey())
+                        .findFirst()
+                        .map(Card::getRank)
+                        .orElse(null);
+
+                return new HandRanking(7, "Four of a Kind, " + getReadableRank(entry.getKey()) + "s");
+            }
+        }
+
+        // Check for full house
+        Card.Rank tripRank = null;
+        for (Map.Entry<Card.Rank, Integer> entry : rankCounts.entrySet()) {
+            if (entry.getValue() == 3) {
+                tripRank = entry.getKey();
+                break;
+            }
+        }
+
+        if (tripRank != null) {
+            // Look for a pair
+            for (Map.Entry<Card.Rank, Integer> entry : rankCounts.entrySet()) {
+                if (entry.getValue() >= 2 && entry.getKey() != tripRank) {
+                    return new HandRanking(6, "Full House, " + getReadableRank(tripRank) + "s over " + getReadableRank(entry.getKey()) + "s");
+                }
+            }
+        }
+
+        // Check for flush
+        if (hasFlush) {
+            // Get highest card of flush suit
+            Card.Suit finalFlushSuit = flushSuit;
+            Card.Rank highestFlushCard = sortedCards.stream()
+                    .filter(c -> c.getSuit() == finalFlushSuit)
+                    .findFirst()
+                    .map(Card::getRank)
+                    .orElse(null);
+
+            return new HandRanking(5, "Flush, " + getReadableRank(highestFlushCard) + " high");
+        }
+
+        // Check for straight
+        if (hasStraight) {
+            return new HandRanking(4, "Straight, " + getReadableRank(straightHighCard) + " high");
+        }
+
+        // Check for three of a kind
+        if (tripRank != null) {
+            return new HandRanking(3, "Three of a Kind, " + getReadableRank(tripRank) + "s");
+        }
+
+        // Check for two pair
+        List<Card.Rank> pairRanks = new ArrayList<>();
+        for (Map.Entry<Card.Rank, Integer> entry : rankCounts.entrySet()) {
+            if (entry.getValue() == 2) {
+                pairRanks.add(entry.getKey());
+            }
+        }
+
+        if (pairRanks.size() >= 2) {
+            // Sort pairs by rank
+            pairRanks.sort(Comparator.comparingInt(r -> getRankValue((Card.Rank) r)).reversed());
+            return new HandRanking(2, "Two Pair, " + getReadableRank(pairRanks.get(0)) + "s and " + getReadableRank(pairRanks.get(1)) + "s");
+        }
+
+        // Check for one pair
+        if (pairRanks.size() == 1) {
+            return new HandRanking(1, "Pair of " + getReadableRank(pairRanks.get(0)) + "s");
+        }
+
+        // High card
+        Card.Rank highCard = sortedCards.get(0).getRank();
+        return new HandRanking(0, getReadableRank(highCard) + " High");
+    }
+
+    // Compare two hands and return the winner (1 if first hand wins, 2 if second hand wins, 0 if tie)
+    public static int compareHands(HandRanking hand1, HandRanking hand2) {
+        // First compare by hand type
+        if (hand1.getRank() > hand2.getRank()) {
+            return 1;
+        } else if (hand1.getRank() < hand2.getRank()) {
+            return -1;
+        } else {
+            // Same hand type, compare by highest card or other tie-breakers
+            // This is a simplified implementation. In a real poker game, tie-breaking would be more complex
+            // and would compare kickers, high cards, etc.
+
+            // Extract high card or pair value from description
+            int hand1Value = extractValueFromDescription(hand1.getDescription());
+            int hand2Value = extractValueFromDescription(hand2.getDescription());
+
+            if (hand1Value > hand2Value) {
+                return 1;
+            } else if (hand1Value < hand2Value) {
+                return -1;
+            } else {
+                return 0; // True tie
+            }
+        }
+    }
+
+    private static int extractValueFromDescription(String description) {
+        // Parse the description to get the card value
+        // Examples: "Pair of Jacks", "Queen High", "Full House, Kings over Nines"
+
+        if (description.contains("Ace")) return 14;
+        if (description.contains("King")) return 13;
+        if (description.contains("Queen")) return 12;
+        if (description.contains("Jack")) return 11;
+        if (description.contains("10")) return 10;
+        if (description.contains("9")) return 9;
+        if (description.contains("8")) return 8;
+        if (description.contains("7")) return 7;
+        if (description.contains("6")) return 6;
+        if (description.contains("5")) return 5;
+        if (description.contains("4")) return 4;
+        if (description.contains("3")) return 3;
+        if (description.contains("2")) return 2;
+
+        // If no value could be extracted, default to 0
+        return 0;
+    }
+
+    // Helper methods
+    private static int getRankValue(Card.Rank rank) {
+        switch (rank) {
+            case TWO:
+                return 2;
+            case THREE:
+                return 3;
+            case FOUR:
+                return 4;
+            case FIVE:
+                return 5;
+            case SIX:
+                return 6;
+            case SEVEN:
+                return 7;
+            case EIGHT:
+                return 8;
+            case NINE:
+                return 9;
+            case TEN:
+                return 10;
+            case JACK:
+                return 11;
+            case QUEEN:
+                return 12;
+            case KING:
+                return 13;
+            case ACE:
+                return 14;
+            default:
+                return 0;
+        }
+    }
+
+    private static Card.Rank getRankFromValue(int value) {
+        switch (value) {
+            case 2:
+                return Card.Rank.TWO;
+            case 3:
+                return Card.Rank.THREE;
+            case 4:
+                return Card.Rank.FOUR;
+            case 5:
+                return Card.Rank.FIVE;
+            case 6:
+                return Card.Rank.SIX;
+            case 7:
+                return Card.Rank.SEVEN;
+            case 8:
+                return Card.Rank.EIGHT;
+            case 9:
+                return Card.Rank.NINE;
+            case 10:
+                return Card.Rank.TEN;
+            case 11:
+                return Card.Rank.JACK;
+            case 12:
+                return Card.Rank.QUEEN;
+            case 13:
+                return Card.Rank.KING;
+            case 14:
+                return Card.Rank.ACE;
+            default:
+                return Card.Rank.TWO;
+        }
+    }
+
+    private static String getReadableRank(Card.Rank rank) {
+        switch (rank) {
+            case TWO:
+                return "2";
+            case THREE:
+                return "3";
+            case FOUR:
+                return "4";
+            case FIVE:
+                return "5";
+            case SIX:
+                return "6";
+            case SEVEN:
+                return "7";
+            case EIGHT:
+                return "8";
+            case NINE:
+                return "9";
+            case TEN:
+                return "10";
+            case JACK:
+                return "Jack";
+            case QUEEN:
+                return "Queen";
+            case KING:
+                return "King";
+            case ACE:
+                return "Ace";
+            default:
+                return "";
+        }
+    }
+}
+```
+
+
+### backend/src/main/java/com/edwn/unihack/service/PokerUtilService.java
+
+```java
+// backend/src/main/java/com/edwn/unihack/service/PokerUtilService.java
+package com.edwn.unihack.service;
+
+import com.edwn.unihack.model.GameRoom;
+import org.springframework.stereotype.Service;
+
+@Service
+public class PokerUtilService {
+
+    /**
+     * Calculates button position from small blind position
+     */
+    public int calculateButtonPosition(GameRoom room) {
+        if (room.getPlayers().size() <= 1) return 0;
+
+        if (room.getPlayers().size() == 2) {
+            return room.getSmallBlindPosition(); // In heads-up, button is the small blind
+        } else {
+            // In 3+ players, button is one position before small blind
+            return (room.getSmallBlindPosition() - 1 + room.getPlayers().size()) % room.getPlayers().size();
+        }
+    }
+
+    /**
+     * Gets the big blind position from small blind position
+     */
+    public int calculateBigBlindPosition(GameRoom room) {
+        if (room.getPlayers().size() <= 1) return 0;
+        return (room.getSmallBlindPosition() + 1) % room.getPlayers().size();
+    }
+
+    /**
+     * Gets dealer position from small blind position
+     */
+    public int getDealerPosition(GameRoom room) {
+        if (room.getPlayers().size() <= 1) return 0;
+
+        // In heads-up, the dealer is the small blind
+        if (room.getPlayers().size() == 2) return room.getSmallBlindPosition();
+
+        // Otherwise, dealer is one position before small blind
+        return (room.getSmallBlindPosition() - 1 + room.getPlayers().size()) % room.getPlayers().size();
+    }
+
+    /**
+     * Calculate UTG position (player after big blind)
+     */
+    public int calculateUTGPosition(GameRoom room) {
+        int bigBlindPos = calculateBigBlindPosition(room);
+        return (bigBlindPos + 1) % room.getPlayers().size();
+    }
+
+    /**
+     * Get position name based on the player's position relative to the button
+     */
+    public String getPositionName(int playerIndex, GameRoom room) {
+        if (room.getPlayers().size() < 3) return "";
+
+        int buttonPos = calculateButtonPosition(room);
+        int smallBlindPos = room.getSmallBlindPosition();
+        int bigBlindPos = calculateBigBlindPosition(room);
+
+        if (playerIndex == buttonPos) return "BTN";
+        if (playerIndex == smallBlindPos) return "SB";
+        if (playerIndex == bigBlindPos) return "BB";
+
+        // Calculate position relative to button
+        int positionFromButton = (playerIndex - buttonPos + room.getPlayers().size()) % room.getPlayers().size();
+        int playerCount = room.getPlayers().size();
+
+        switch (positionFromButton) {
+            case 3:
+                return "UTG";
+            case 4:
+                return playerCount > 6 ? "UTG+1" : "MP";
+            case 5:
+                return playerCount > 7 ? "UTG+2" : "MP";
+            case 6:
+                return "MP";
+            case 7:
+                return "MP";
+            default:
+                if (positionFromButton == playerCount - 1)
+                    return "CO"; // Cutoff
+                else if (positionFromButton == playerCount - 2)
+                    return playerCount > 4 ? "HJ" : "MP"; // Hijack
+                else
+                    return "MP"; // Middle position
+        }
+    }
+
+    /**
+     * Get how many cards we need for the current stage
+     */
+    public int getRequiredCardCount(GameRoom room) {
+        switch (room.getGameState()) {
+            case PREFLOP:
+                // 2 cards per player
+                return room.getPlayers().size() * 2;
+            case FLOP:
+                // 3 community cards
+                return 3;
+            case TURN:
+            case RIVER:
+                // 1 community card each
+                return 1;
+            default:
+                return 0;
+        }
+    }
+
+    /**
+     * Get current scanned card count
+     */
+    public int getCurrentScannedCardCount(GameRoom room) {
+        switch (room.getGameState()) {
+            case PREFLOP:
+                // Count cards in player hands
+                return room.getPlayers().stream()
+                        .filter(p -> p.getHand() != null)
+                        .mapToInt(p -> p.getHand().getCards().size())
+                        .sum();
+            case FLOP:
+            case TURN:
+            case RIVER:
+                // Count community cards
+                return room.getCommunityCards().size();
+            default:
+                return 0;
+        }
+    }
+}
+```
+
+
+### backend/src/main/java/com/edwn/unihack/UnihackApplication.java
+
+```java
+package com.edwn.unihack;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class UnihackApplication {
+
+    public static void main(String[] args) {
+        SpringApplication.run(UnihackApplication.class, args);
+    }
+
+}
+
+```
