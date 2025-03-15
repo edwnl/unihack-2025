@@ -4,6 +4,8 @@ import "./globals.css";
 import { Poppins } from "next/font/google";
 import { GameProvider } from "@/lib/game-context";
 import DebugNavigation from "@/components/debug-navigation";
+import { Toaster } from "sonner";
+import { SessionRecoveryToast } from "@/components/session-recovery-toast";
 
 const poppins = Poppins({
   subsets: ["latin"],
@@ -32,7 +34,11 @@ export default function RootLayout({
       </head>
       <body className={`${poppins.className} antialiased`}>
         <DebugNavigation />
-        <GameProvider>{children}</GameProvider>
+        <GameProvider>
+          <SessionRecoveryToast />
+          {children}
+        </GameProvider>
+        <Toaster position="top-right" />
       </body>
     </html>
   );
