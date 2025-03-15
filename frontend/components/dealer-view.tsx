@@ -1,7 +1,7 @@
 // frontend/components/dealer-view.tsx
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useGameContext } from "@/lib/game-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -60,6 +60,7 @@ export default function DealerView({ gameId }: DealerViewProps) {
   const { gameRoom } = useGameContext();
   const [error, setError] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string>("");
+  const [raiseInputVoice, setRaiseInputVoice] = useState<number>(0);
   const [raiseInput, setRaiseInput] = useState<number>(0);
   const [cardsSeen, setCardsSeen] = useState(new Set<string>());
   const [scanDelay, setScanDelay] = useState(false);
@@ -69,6 +70,11 @@ export default function DealerView({ gameId }: DealerViewProps) {
   const allInRef = useRef<HTMLButtonElement>(null);
   const callRef = useRef<HTMLButtonElement>(null);
 
+  useEffect(() => {
+    if (raiseRef.current) {
+      raiseRef.current.click();
+    }
+  }, [raiseInputVoice]);
   // Use Azure speech recognition hook
   const {
     isListening,
@@ -116,7 +122,7 @@ export default function DealerView({ gameId }: DealerViewProps) {
     setScanDelay(true);
     setTimeout(() => {
       setScanDelay(false);
-    }, 100);
+    }, 150);
 
     const suits = ["HEARTS", "DIAMONDS", "CLUBS", "SPADES"];
     const ranks = [
@@ -214,9 +220,7 @@ export default function DealerView({ gameId }: DealerViewProps) {
       }
     } else if (action === "raise" || action === "bet") {
       setRaiseInput(extractNumber(normalized) || 0);
-      if (raiseRef.current) {
-        raiseRef.current.click();
-      }
+      setRaiseInputVoice(extractNumber(normalized) || 0);
     } else if (action === "allin") {
       if (allInRef.current) {
         allInRef.current.click();

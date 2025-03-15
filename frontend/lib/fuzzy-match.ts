@@ -61,6 +61,7 @@ const POKER_ACTIONS = {
   ],
   raise: [
     "raise",
+    "release",
     "raises",
     "raising",
     "rays",
@@ -91,9 +92,12 @@ const POKER_ACTIONS = {
     "bats",
   ],
   allin: [
+    "in",
+    "ends",
     "allin",
     "all-in",
     "all in",
+    "all ends",
     "all",
     "all ins",
     "ollie",
