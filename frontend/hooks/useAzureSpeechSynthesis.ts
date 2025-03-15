@@ -38,12 +38,12 @@ export function useAzureSpeechSynthesis(): UseAzureSpeechSynthesisReturn {
     // When the utterance finishes (or errors), process the next one
     utterance.onend = () => {
       console.log("[SpeechSynthesis] Utterance ended");
-      setTimeout(() => processQueue(), 300); // Small delay between phrases
+      setTimeout(() => processQueue(), 50); // Small delay between phrases
     };
     
     utterance.onerror = (event) => {
       console.error("[SpeechSynthesis] Error:", event);
-      setTimeout(() => processQueue(), 300);
+      setTimeout(() => processQueue(), 50);
     };
     
     // Configure the utterance

@@ -158,10 +158,12 @@ export default function PlayerView({ gameId }: PlayerViewProps) {
   useEffect(() => {
     if (!screenReaderEnabled || !gameRoom) return;
     
-    // Reset flop announcement flag and community cards count when a new hand starts
-    if (prevGameState === "ENDED" && gameRoom.gameState === "PREFLOP") {
-      setAnnouncedFlop(false);
-      setPrevCommunityCardsCount(0); // Reset community cards count here
+    // When community cards are cleared (likely indicating a new hand), reset the flags and count
+    if (!gameRoom.communityCards || gameRoom.communityCards.length === 0) {
+      if (prevCommunityCardsCount !== 0 || announcedFlop) {
+        setAnnouncedFlop(false);
+        setPrevCommunityCardsCount(0);
+      }
     }
     
     // Handle flop announcement
@@ -172,7 +174,6 @@ export default function PlayerView({ gameId }: PlayerViewProps) {
       gameRoom.communityCards.length === 3 && 
       !announcedFlop
     ) {
-      // Explicitly announce all three flop cards
       let announcement = "Flop is: ";
       for (let i = 0; i < 3; i++) {
         announcement += formatCardForSpeech(gameRoom.communityCards[i]);
