@@ -19,6 +19,43 @@ interface DealerViewProps {
   gameId: string;
 }
 
+// Helper function to calculate how many cards remain to be scanned
+/* eslint-disable @typescript-eslint/no-explicit-any */
+function getRemainingCards(gameRoom: any): number {
+  let remaining = 0;
+  const currentCommunity = gameRoom.communityCards
+    ? gameRoom.communityCards.length
+    : 0;
+
+  if (gameRoom.gameState === "PREFLOP") {
+    // For PREFLOP, every active player should have 2 cards.
+    /* eslint-disable @typescript-eslint/no-explicit-any */
+    const activePlayers = gameRoom.players.filter((p: any) => p.active).length;
+    const totalRequired = activePlayers * 2;
+    let currentDealt = 0;
+
+    /* eslint-disable @typescript-eslint/no-explicit-any */
+    gameRoom.players.forEach((p: any) => {
+      if (p.hand && p.hand.cards) {
+        currentDealt += p.hand.cards.length;
+      }
+    });
+    remaining = totalRequired - currentDealt;
+  } else if (gameRoom.gameState === "FLOP") {
+    // The FLOP needs exactly 3 community cards
+    remaining = 3 - currentCommunity;
+  } else if (gameRoom.gameState === "TURN") {
+    // After the flop, the TURN is the 4th community card
+    remaining = 4 - currentCommunity;
+  } else if (gameRoom.gameState === "RIVER") {
+    // The RIVER is the 5th community card
+    remaining = 5 - currentCommunity;
+  }
+
+  // Make sure we never return a negative number
+  return remaining < 0 ? 0 : remaining;
+}
+
 export default function DealerView({ gameId }: DealerViewProps) {
   const { gameRoom } = useGameContext();
   const [error, setError] = useState<string | null>(null);
@@ -48,6 +85,7 @@ export default function DealerView({ gameId }: DealerViewProps) {
 
   // Determine current player from gameRoom using currentPlayerIndex
   const currentPlayer = gameRoom.players[gameRoom.currentPlayerIndex];
+
   // Recalculate call amount from current player's bet (from gameRoom.bets)
   const getCallAmount = () => {
     if (!currentPlayer) return 0;
@@ -57,7 +95,18 @@ export default function DealerView({ gameId }: DealerViewProps) {
     return gameRoom.currentBet - currentPlayerBet;
   };
 
+  // Calculate how many cards remain to be scanned
+  const remainingCards = getRemainingCards(gameRoom);
+  // Allow scanning only if the game is waiting for cards, there are cards remaining, and the game is not over.
+  const canScan = gameRoom.waitingForCards && remainingCards > 0 && !isGameOver;
+
+  // Manual actions are disabled if the game is still waiting for cards or if the current player has folded.
+  const actionsDisabled = gameRoom.waitingForCards || currentPlayer?.folded;
+
+  // Handler for scanning a card
   const handleScanCard = () => {
+    if (!canScan) return; // Prevent scanning if not allowed
+
     const suits = ["HEARTS", "DIAMONDS", "CLUBS", "SPADES"];
     const ranks = [
       "TWO",
@@ -93,11 +142,14 @@ export default function DealerView({ gameId }: DealerViewProps) {
     });
   };
 
+  // Handler for starting a new hand
   const handleStartNewHand = async () => {
     setCardsSeen(new Set<string>());
     try {
+      const backendUrl =
+        process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080";
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080"}/api/game/${gameId}/new-hand`,
+        `${backendUrl}/api/game/${gameId}/new-hand`,
         {
           method: "POST",
         },
@@ -302,7 +354,7 @@ export default function DealerView({ gameId }: DealerViewProps) {
 
   // Manual action handlers
   const handleManualFold = () => {
-    if (isGameOver) return; // Do nothing if game ended
+    if (isGameOver) return;
     sendGameAction(gameId, {
       playerId: currentPlayer.id,
       playerName: currentPlayer.name,
@@ -316,7 +368,7 @@ export default function DealerView({ gameId }: DealerViewProps) {
       setErrorMsg("Cannot check when there's a bet to call. Please use Call.");
       return;
     }
-    setErrorMsg(""); // Clear error message
+    setErrorMsg("");
     sendGameAction(gameId, {
       playerId: currentPlayer.id,
       playerName: currentPlayer.name,
@@ -355,16 +407,13 @@ export default function DealerView({ gameId }: DealerViewProps) {
       amount: raiseInput,
     });
   };
-
   const handleManualAllIn = () => {
     if (!currentPlayer) return;
-
     const allInAmount = currentPlayer.chips;
     if (allInAmount <= 0) {
       setErrorMsg("Player has no chips to go all in with.");
       return;
     }
-
     setErrorMsg("");
     sendGameAction(gameId, {
       playerId: currentPlayer.id,
@@ -454,14 +503,13 @@ export default function DealerView({ gameId }: DealerViewProps) {
 
             <CommunityCards gameRoom={gameRoom} />
 
-            {/* Scan Card Button */}
-            {/* Hide or disable this if game is over */}
+            {/* Scan Card Button with Countdown */}
             <Button
               onClick={handleScanCard}
               className="w-full"
-              disabled={isGameOver}
+              disabled={!canScan}
             >
-              Scan Random Card
+              Scan Random Card ({remainingCards} remaining)
             </Button>
 
             {/* Manual Action Panel for current player */}
@@ -475,7 +523,7 @@ export default function DealerView({ gameId }: DealerViewProps) {
               </div>
               <div className="flex items-center gap-2">
                 <Button
-                  disabled={gameRoom.waitingForCards || currentPlayer?.folded}
+                  disabled={actionsDisabled}
                   onClick={handleManualFold}
                   variant="secondary"
                 >
@@ -483,7 +531,7 @@ export default function DealerView({ gameId }: DealerViewProps) {
                 </Button>
                 {getCallAmount() === 0 ? (
                   <Button
-                    disabled={gameRoom.waitingForCards || currentPlayer?.folded}
+                    disabled={actionsDisabled}
                     onClick={handleManualCheck}
                   >
                     Check
@@ -493,8 +541,7 @@ export default function DealerView({ gameId }: DealerViewProps) {
                     onClick={handleManualCall}
                     disabled={
                       getCallAmount() > (currentPlayer?.chips || 0) ||
-                      gameRoom.waitingForCards ||
-                      currentPlayer?.folded
+                      actionsDisabled
                     }
                   >
                     Call ({getCallAmount()})
@@ -510,7 +557,7 @@ export default function DealerView({ gameId }: DealerViewProps) {
                   value={raiseInput.toString()}
                   onChange={(e) => setRaiseInput(Number(e.target.value))}
                   className="w-16"
-                  disabled={gameRoom.waitingForCards || currentPlayer?.folded}
+                  disabled={actionsDisabled}
                 />
                 <Button
                   onClick={handleManualRaise}
@@ -518,19 +565,14 @@ export default function DealerView({ gameId }: DealerViewProps) {
                     raiseInput <= 0 ||
                     raiseInput + getCallAmount() >
                       (currentPlayer?.chips || 0) ||
-                    gameRoom.waitingForCards ||
-                    currentPlayer?.folded
+                    actionsDisabled
                   }
                 >
                   Raise
                 </Button>
                 <Button
                   onClick={handleManualAllIn}
-                  disabled={
-                    (currentPlayer?.chips || 0) <= 0 ||
-                    gameRoom.waitingForCards ||
-                    currentPlayer?.folded
-                  }
+                  disabled={(currentPlayer?.chips || 0) <= 0 || actionsDisabled}
                   className="bg-red-600 hover:bg-red-700"
                 >
                   All In
