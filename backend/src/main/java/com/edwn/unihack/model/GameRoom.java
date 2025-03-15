@@ -30,6 +30,8 @@ public class GameRoom {
     private boolean waitingForCards = true;
     @Builder.Default
     private List<String> winnerIds = new ArrayList<>();
+    private int nextCardRecipientIndex;
+    private int handNumber;
 
     public static GameRoom createNew() {
         return GameRoom.builder()
@@ -43,6 +45,17 @@ public class GameRoom {
                 .currentBet(0)
                 .smallBlindPosition(0) // Initialize small blind position
                 .build();
+    }
+
+    public void newHand() {
+        setCommunityCards(new ArrayList<>());
+        setGameState(GameRoom.GameState.PREFLOP);
+        setWaitingForCards(true);
+        setPot(0);
+        setBets(new HashMap<>());
+        setCurrentBet(0);
+        setActions(new ArrayList<>());
+        setWinnerIds(new ArrayList<>());
     }
 
     private static String generateGameCode() {
