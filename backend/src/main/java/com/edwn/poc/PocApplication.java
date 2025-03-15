@@ -1,13 +1,13 @@
-package com.edwn.poc;
+package com.edwn.unihack;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-public class PocApplication {
+public class unihackApplication {
 
 	public static void main(String[] args) {
-		SpringApplication.run(PocApplication.class, args);
+		SpringApplication.run(unihackApplication.class, args);
 	}
 
 }

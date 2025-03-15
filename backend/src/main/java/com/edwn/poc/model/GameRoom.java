@@ -1,4 +1,4 @@
-package com.edwn.poc.model;
+package com.edwn.unihack.model;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

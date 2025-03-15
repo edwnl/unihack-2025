@@ -1,7 +1,7 @@
-package com.edwn.poc.service;
+package com.edwn.unihack.service;
 
-import com.edwn.poc.model.GameRoom;
-import com.edwn.poc.model.Player;
+import com.edwn.unihack.model.GameRoom;
+import com.edwn.unihack.model.Player;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;

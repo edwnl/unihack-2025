@@ -1,7 +1,7 @@
-package com.edwn.poc.dto;
+package com.edwn.unihack.dto;
 
-import com.edwn.poc.model.GameRoom;
-import com.edwn.poc.model.Player;
+import com.edwn.unihack.model.GameRoom;
+import com.edwn.unihack.model.Player;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

@@ -1,4 +1,4 @@
-package com.edwn.poc.config;
+package com.edwn.unihack.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

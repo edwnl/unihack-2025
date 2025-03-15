@@ -1,4 +1,4 @@
-package com.edwn.poc.dto;
+package com.edwn.unihack.dto;
 
 import lombok.Data;
 

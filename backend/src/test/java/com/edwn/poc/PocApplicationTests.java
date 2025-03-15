@@ -1,10 +1,10 @@
-package com.edwn.poc;
+package com.edwn.unihack;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
 @SpringBootTest
-class PocApplicationTests {
+class unihackApplicationTests {
 
 	@Test
 	void contextLoads() {

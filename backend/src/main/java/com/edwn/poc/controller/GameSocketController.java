@@ -1,9 +1,9 @@
-package com.edwn.poc.controller;
+package com.edwn.unihack.controller;
 
-import com.edwn.poc.dto.GameRoomResponse;
-import com.edwn.poc.model.GameAction;
-import com.edwn.poc.model.GameRoom;
-import com.edwn.poc.service.GameRoomService;
+import com.edwn.unihack.dto.GameRoomResponse;
+import com.edwn.unihack.model.GameAction;
+import com.edwn.unihack.model.GameRoom;
+import com.edwn.unihack.service.GameRoomService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;

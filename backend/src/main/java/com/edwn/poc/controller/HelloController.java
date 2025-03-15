@@ -1,4 +1,4 @@
-package com.edwn.poc.controller;
+package com.edwn.unihack.controller;
 
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
