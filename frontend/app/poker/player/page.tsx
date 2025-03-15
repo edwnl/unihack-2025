@@ -1,5 +1,4 @@
 // frontend/app/start/player/page.tsx
-
 "use client";
 
 import { useState } from "react";
@@ -21,6 +20,7 @@ export default function PlayerJoinPage() {
   const [gameCode, setGameCode] = useState("");
   const [online, setOnline] = useState(true);
   const [visuallyImpaired, setVisuallyImpaired] = useState(false);
+  const [screenReader, setScreenReader] = useState(false);
 
   // Backend URL with fallback
   const backendUrl =
@@ -31,7 +31,6 @@ export default function PlayerJoinPage() {
       setError("Name and game code are required");
       return;
     }
-
     setLoading(true);
     setError(null);
 
@@ -49,19 +48,19 @@ export default function PlayerJoinPage() {
 
       const player = await response.json();
 
-      // Set user role with player ID returned from server
+      // Store screenReader flag along with the player role info.
       setUserRole({
         role: "PLAYER",
         playerId: player.id,
+        screenReader,
       });
 
-      // Get room details
+      // Get room details and store in game context.
       const roomResponse = await fetch(`${backendUrl}/api/game/${gameCode}`);
       if (roomResponse.ok) {
         const room = await roomResponse.json();
         setGameRoom(room);
       }
-
       router.push(`/poker/waiting/${gameCode}`);
     } catch (err) {
       setError((err as Error).message);
@@ -87,7 +86,7 @@ export default function PlayerJoinPage() {
                   id="name"
                   type="text"
                   value={name}
-                  maxLength={16} // <-- Enforces a 16-character limit
+                  maxLength={16}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Enter your name"
                   className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
@@ -130,6 +129,20 @@ export default function PlayerJoinPage() {
                   id="visuallyImpaired"
                   checked={visuallyImpaired}
                   onCheckedChange={setVisuallyImpaired}
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <label
+                  htmlFor="screenReader"
+                  className="block text-sm font-medium"
+                >
+                  Screen Reader
+                </label>
+                <Switch
+                  id="screenReader"
+                  checked={screenReader}
+                  onCheckedChange={setScreenReader}
                 />
               </div>
 
