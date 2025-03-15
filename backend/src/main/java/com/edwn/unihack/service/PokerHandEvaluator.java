@@ -48,7 +48,7 @@ public class PokerHandEvaluator {
         if (value > 2467)
             return "Two Pair";
         if (value > 1609)
-            return "Three Kind";
+            return "Three of a Kind";
         if (value > 1599)
             return "Straight";
         if (value > 322)
@@ -56,10 +56,10 @@ public class PokerHandEvaluator {
         if (value > 166)
             return "Full House";
         if (value > 10)
-            return "Four Kind";
+            return "Four of a Kind";
         if (value > 4)
             return "Straight Flush";
-        return "Royal Straight Flush";
+        return "Royal Flush";
     }
 
     public static int getRankCategory(int value) {
