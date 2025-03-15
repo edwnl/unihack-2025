@@ -26,7 +26,7 @@ export default function Home() {
         >
           <span className="font-bold text-base md:text-lg">shuffl 🂡</span>
         </motion.div>
-      
+
         {/* Play Now Button */}
         <Link href="/pick-game">
           <motion.button
