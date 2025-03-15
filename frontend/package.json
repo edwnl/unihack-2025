@@ -10,7 +10,7 @@
     "lint-tsc": "npx tsc --noEmit",
     "format": "npx prettier@3.5.3 . --write",
     "check-format": "npx prettier@3.5.3 . --check",
-    "liang": "next lint && npx tsc --noEmit && npx prettier@3.5.3 . --writee"
+    "liang": "next lint && npx tsc --noEmit && npx prettier@3.5.3 . --write"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.6",
