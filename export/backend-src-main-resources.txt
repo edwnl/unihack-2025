@@ -1,9 +1,0 @@
-# backend-src-main-resources Files
-
-### backend/src/main/resources/application.properties
-
-```properties
-spring.application.name=unihack
-server.port=8080
-
-```
