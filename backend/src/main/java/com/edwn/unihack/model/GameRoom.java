@@ -25,11 +25,11 @@ public class GameRoom {
     private Map<String, Integer> bets; // Track bets for the current round
     private int currentBet; // Current highest bet
     @Builder.Default
-    private int smallBlindPosition = 0; // Track small blind position instead of dealer
+    private final int smallBlindPosition = 0; // Track small blind position instead of dealer
     @Builder.Default
-    private boolean waitingForCards = true;
+    private final boolean waitingForCards = true;
     @Builder.Default
-    private List<String> winnerIds = new ArrayList<>();
+    private final List<String> winnerIds = new ArrayList<>();
 
     public static GameRoom createNew() {
         return GameRoom.builder()
