@@ -10,8 +10,8 @@ const poppins = Poppins({
 });
 
 export const metadata: Metadata = {
-  title: "Poker Game",
-  description: "Accessible poker game for everyone",
+  title: "Shuffl",
+  description: "Accessible card games platform for everyone",
 };
 
 export default function RootLayout({
