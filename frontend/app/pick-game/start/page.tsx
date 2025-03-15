@@ -41,24 +41,36 @@ export default function StartPage() {
 
       <div className="w-full max-w-md">
         <div className="max-w-md w-full">
-          <h1 className="text-3xl font-bold text-center mb-6">
+          <h1 className="text-3xl font-bold text-center text-b mb-6">
             Ready to play? 🃏
           </h1>
-
           <div className="space-y-4">
-            <button
+            <div
               onClick={() => handleRoleSelect("PLAYER")}
-              className="w-full py-3 bg-gray-100 text-black font-bold rounded-lg shadow-md hover:bg-gray-200 text-center cursor-pointer"
+              className="group block w-full py-3 bg-gray-100 text-black font-bold rounded-lg shadow-md hover:bg-[#ffe330] transition duration-300 text-center relative overflow-hidden cursor-pointer"
             >
-              Join a Game - Player
-            </button>
-
-            <button
+              <div className="relative w-full inline-flex justify-center items-center">
+                <span className="inline-block mr-0 group-hover:mr-2 transition-all duration-300 align-middle">
+                  Join a Game
+                </span>
+                <span className="inline-block w-0 whitespace-nowrap overflow-hidden group-hover:w-auto transition-all duration-300 align-middle">
+                  &gt; Player
+                </span>
+              </div>
+            </div>
+            <div
               onClick={() => handleRoleSelect("DEALER")}
-              className="w-full py-3 bg-gray-100 text-black font-bold rounded-lg shadow-md hover:bg-gray-200 text-center cursor-pointer"
+              className="group block w-full py-3 bg-gray-100 text-black font-bold rounded-lg shadow-md hover:bg-[#ffe330] transition duration-300 text-center relative overflow-hidden cursor-pointer"
             >
-              Create a Lobby - Dealer
-            </button>
+              <div className="relative w-full inline-flex justify-center items-center">
+                <span className="inline-block mr-0 group-hover:mr-2 transition-all duration-300 align-middle">
+                  Create a Lobby
+                </span>
+                <span className="inline-block w-0 whitespace-nowrap overflow-hidden group-hover:w-auto transition-all duration-300 align-middle">
+                  &gt; Dealer
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
