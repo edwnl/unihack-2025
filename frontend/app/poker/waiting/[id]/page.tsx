@@ -211,7 +211,7 @@ export default function WaitingRoomPage() {
         </Card>
 
         <div className="text-center">
-          <Button variant="ghost" onClick={() => router.push("/")}>
+          <Button variant="ghost" onClick={() => router.push("/poker")}>
             Leave Game
           </Button>
         </div>

@@ -147,7 +147,7 @@ export default function PlayerJoinPage() {
             <Button
               variant="ghost"
               className="w-full mt-4"
-              onClick={() => router.push("/start")}
+              onClick={() => router.push("/poker")}
             >
               Back
             </Button>
