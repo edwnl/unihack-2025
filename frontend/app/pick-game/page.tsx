@@ -1,10 +1,13 @@
 "use client";
+
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
+
 export default function GameSelectionPage() {
   const router = useRouter();
+
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-4 md:p-8">
       <Button
@@ -19,7 +22,7 @@ export default function GameSelectionPage() {
       <div className="w-full pt-14 md:pt-0">
         <h1 className="text-3xl font-bold text-center mb-12">Select a Game</h1>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-          <Link href="/pick-game/start" className="block w-full h-full">
+          <Link href="/poker" className="block w-full h-full">
             <div className="w-full aspect-[3/4] rounded-xl overflow-hidden shadow-lg bg-blue-900 flex flex-col items-center justify-center hover:opacity-90 transition-opacity">
               <span
                 className="text-6xl mb-4"

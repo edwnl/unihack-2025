@@ -8,23 +8,38 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function DealerCreatePage() {
   const router = useRouter();
-  const { setUserRole } = useGameContext();
+  const { setUserRole, setGameRoom } = useGameContext();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Backend URL with fallback
+  const backendUrl =
+    process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080";
 
   const handleDealerCreate = async () => {
     setLoading(true);
     setError(null);
 
     try {
-      // temporary
-      setUserRole({
-        role: "DEALER",
-        playerId: "temp-dealer-id",
+      const response = await fetch(`${backendUrl}/api/game/dealer/create`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
       });
 
-      // home for now
-      router.push("/");
+      if (!response.ok) {
+        throw new Error("Failed to create game room");
+      }
+
+      const data = await response.json();
+      setGameRoom(data);
+
+      // Set user role with dealer ID
+      setUserRole({
+        role: "DEALER",
+        playerId: data.dealerId,
+      });
+
+      router.push(`waiting/${data.id}`);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -58,7 +73,7 @@ export default function DealerCreatePage() {
             <Button
               variant="ghost"
               className="w-full mt-4"
-              onClick={() => router.push("/pick-game/start")}
+              onClick={() => router.push("/poker")}
             >
               Back
             </Button>
