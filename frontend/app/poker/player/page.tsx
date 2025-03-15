@@ -52,6 +52,7 @@ export default function PlayerJoinPage() {
       setUserRole({
         role: "PLAYER",
         playerId: player.id,
+        gameId: gameCode,
         screenReader,
       });
 

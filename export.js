@@ -19,7 +19,7 @@ const EXCLUDED_DIRS = [
   "gradle",
   ".mvn-wrapper",
   "test",
-  " ui"
+  "ui"
 ];
 const EXCLUDED_FILES = [
   ".test.",

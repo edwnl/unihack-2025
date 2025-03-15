@@ -64,4 +64,5 @@ export interface UserRoleInfo {
   role: UserRole | null;
   playerId?: string;
   screenReader?: boolean;
+  gameId?: string;
 }
