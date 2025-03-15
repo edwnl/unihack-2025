@@ -223,6 +223,7 @@ export default function WaitingRoomPage() {
                 </p>
               )}
 
+              {/* Render error message if an error occurs */}
               {error && (
                 <p className="text-red-500 text-center mt-4">{error}</p>
               )}
