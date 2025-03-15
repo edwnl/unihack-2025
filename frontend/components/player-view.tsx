@@ -1,6 +1,8 @@
 // frontend/components/player-view.tsx
 "use client";
 
+import { useEffect } from "react";
+import { useParams, useRouter } from "next/navigation";
 import { useGameContext } from "@/lib/game-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import PlayerHand from "@/components/player-hand";
@@ -9,7 +11,7 @@ import PlayerActions from "@/components/player-actions";
 import AIAdvisor from "@/components/ai-advisor";
 import { getPokerPosition } from "@/lib/utils";
 import { useAzureSpeechSynthesis } from "@/hooks/useAzureSpeechSynthesis";
-import { useEffect, useState, useRef } from "react";
+import { useState, useRef } from "react";
 
 interface PlayerViewProps {
   gameId: string;
@@ -20,8 +22,8 @@ export default function PlayerView({ gameId }: PlayerViewProps) {
   const { gameRoom, userRole } = useGameContext();
   const { speak, stopSpeaking } = useAzureSpeechSynthesis();
   
-  // Track previous community cards to detect new ones
-  const [prevCommunityCards, setPrevCommunityCards] = useState<number>(0);
+  // Track previous community cards count to detect new ones
+  const [prevCommunityCardsCount, setPrevCommunityCardsCount] = useState<number>(0);
   // Track previous game state to detect changes
   const [prevGameState, setPrevGameState] = useState<string | undefined>(undefined);
   
@@ -31,6 +33,10 @@ export default function PlayerView({ gameId }: PlayerViewProps) {
   const [currentHandString, setCurrentHandString] = useState<string>("");
   // Track announced actions by IDs
   const [announcedActionIds, setAnnouncedActionIds] = useState<Set<string>>(new Set());
+  // Track if we've announced the winner already for current round
+  const [announcedWinner, setAnnouncedWinner] = useState<boolean>(false);
+  // Track flop announcement for current hand
+  const [announcedFlop, setAnnouncedFlop] = useState<boolean>(false);
 
   if (!gameRoom) return <p>Loading player view...</p>;
   if (!userRole?.playerId) return <p>Error: Player ID not found</p>;
@@ -150,36 +156,70 @@ export default function PlayerView({ gameId }: PlayerViewProps) {
 
   // Effect to announce community cards when dealt
   useEffect(() => {
-    if (!screenReaderEnabled || !gameRoom?.communityCards) return;
+    if (!screenReaderEnabled || !gameRoom) return;
     
-    const currentCount = gameRoom.communityCards.length;
-    
-    // Only announce if new cards have been added
-    if (currentCount > prevCommunityCards) {
-      let announcement = "";
-      
-      if (prevCommunityCards === 0 && currentCount === 3) {
-        // Flop - Explicitly announce each card separately
-        announcement = "Flop is: ";
-        for (let i = 0; i < 3; i++) {
-          announcement += formatCardForSpeech(gameRoom.communityCards[i]);
-          if (i < 2) announcement += ", ";
-        }
-      } else if (prevCommunityCards === 3 && currentCount === 4) {
-        // Turn
-        announcement = "Turn is: " + formatCardForSpeech(gameRoom.communityCards[3]);
-      } else if (prevCommunityCards === 4 && currentCount === 5) {
-        // River
-        announcement = "River is: " + formatCardForSpeech(gameRoom.communityCards[4]);
-      }
-      
-      if (announcement) {
-        speak(announcement);
-      }
-      
-      setPrevCommunityCards(currentCount);
+    // Reset flop announcement flag when a new hand starts
+    if (prevGameState === "ENDED" && gameRoom.gameState === "PREFLOP") {
+      setAnnouncedFlop(false);
     }
-  }, [gameRoom?.communityCards?.length, prevCommunityCards, screenReaderEnabled, speak]);
+    
+    // Handle flop announcement
+    if (
+      gameRoom.gameState === "FLOP" && 
+      !gameRoom.waitingForCards && 
+      gameRoom.communityCards && 
+      gameRoom.communityCards.length === 3 && 
+      !announcedFlop
+    ) {
+      // Explicitly announce all three flop cards
+      let announcement = "Flop is: ";
+      for (let i = 0; i < 3; i++) {
+        announcement += formatCardForSpeech(gameRoom.communityCards[i]);
+        if (i < 2) announcement += ", ";
+      }
+      speak(announcement);
+      setAnnouncedFlop(true);
+      setPrevCommunityCardsCount(3);
+    }
+    
+    // Handle Turn card announcement
+    if (
+      gameRoom.gameState === "TURN" && 
+      !gameRoom.waitingForCards && 
+      gameRoom.communityCards && 
+      gameRoom.communityCards.length === 4 && 
+      prevCommunityCardsCount === 3
+    ) {
+      const turnAnnouncement = "Turn is: " + formatCardForSpeech(gameRoom.communityCards[3]);
+      speak(turnAnnouncement);
+      setPrevCommunityCardsCount(4);
+    }
+    
+    // Handle River card announcement
+    if (
+      gameRoom.gameState === "RIVER" && 
+      !gameRoom.waitingForCards && 
+      gameRoom.communityCards && 
+      gameRoom.communityCards.length === 5 && 
+      prevCommunityCardsCount === 4
+    ) {
+      const riverAnnouncement = "River is: " + formatCardForSpeech(gameRoom.communityCards[4]);
+      speak(riverAnnouncement);
+      setPrevCommunityCardsCount(5);
+    }
+    
+    // Update previous game state
+    setPrevGameState(gameRoom.gameState);
+  }, [
+    gameRoom?.gameState, 
+    gameRoom?.waitingForCards, 
+    gameRoom?.communityCards, 
+    prevCommunityCardsCount, 
+    prevGameState, 
+    announcedFlop,
+    screenReaderEnabled, 
+    speak
+  ]);
 
   // Effect to announce player actions
   useEffect(() => {
@@ -255,7 +295,7 @@ export default function PlayerView({ gameId }: PlayerViewProps) {
       // Update the state with all newly announced actions
       setAnnouncedActionIds(updatedAnnouncedActions);
     }
-  }, [gameRoom?.actions, screenReaderEnabled, userRole.playerId, speak, gameRoom?.players, gameRoom?.smallBlindPosition, getPokerPosition, announcedActionIds]);
+  }, [gameRoom?.actions, screenReaderEnabled, userRole.playerId, speak, gameRoom?.players, gameRoom?.smallBlindPosition]);
 
   // Effect to announce game state changes (showdown/winner)
   useEffect(() => {
@@ -293,8 +333,17 @@ export default function PlayerView({ gameId }: PlayerViewProps) {
       }
     }
     
-    // Announce winner
-    if (gameRoom.winnerIds && gameRoom.winnerIds.length > 0) {
+    // Reset announced winner flag when game state changes from SHOWDOWN/ENDED to PREFLOP
+    if ((prevGameState === "SHOWDOWN" || prevGameState === "ENDED") && gameRoom.gameState === "PREFLOP") {
+      setAnnouncedWinner(false);
+    }
+    
+    // Announce winner only once per hand
+    if ((gameRoom.gameState === "SHOWDOWN" || gameRoom.gameState === "ENDED") && 
+        gameRoom.winnerIds && 
+        gameRoom.winnerIds.length > 0 && 
+        !announcedWinner) {
+      
       const winners = gameRoom.players.filter(p => 
         gameRoom.winnerIds?.includes(p.id)
       );
@@ -321,11 +370,13 @@ export default function PlayerView({ gameId }: PlayerViewProps) {
         });
         
         speak(winnerAnnouncement);
+        setAnnouncedWinner(true); // Mark as announced
       }
     }
     
+    // Update previous game state
     setPrevGameState(gameRoom.gameState);
-  }, [gameRoom?.gameState, gameRoom?.winnerIds, prevGameState, screenReaderEnabled, speak, gameRoom?.players, gameRoom?.smallBlindPosition, getPokerPosition]);
+  }, [gameRoom?.gameState, gameRoom?.winnerIds, prevGameState, screenReaderEnabled, speak, gameRoom?.players, gameRoom?.smallBlindPosition, announcedWinner]);
 
   return (
     <div className="w-full max-w-4xl">
