@@ -28,8 +28,6 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
     playerId?: string;
   } | null>(null);
 
-  // Removed the localStorage useEffect blocks
-
   return (
     <GameContext.Provider
       value={{
