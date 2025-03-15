@@ -1,4 +1,3 @@
-// backend/src/main/java/com/edwn/unihack/controller/GameRoomController.java (updated)
 package com.edwn.unihack.controller;
 
 import com.edwn.unihack.dto.CreatePlayerRequest;
@@ -138,5 +137,18 @@ public class GameRoomController {
         }
 
         return ResponseEntity.ok(player);
+    }
+    
+    // NEW LEAVE ENDPOINT: Used by a player to leave the game or by the dealer to kick a player.
+    @PostMapping("/{gameCode}/leave")
+    public ResponseEntity<?> leaveGame(
+            @PathVariable String gameCode,
+            @RequestParam String playerId) {
+
+        boolean removed = gameRoomService.removePlayerFromRoom(gameCode, playerId);
+        if (!removed) {
+            return ResponseEntity.badRequest().body("Could not leave game. Room might not exist or player not found.");
+        }
+        return ResponseEntity.ok().build();
     }
 }

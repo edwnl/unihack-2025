@@ -1,4 +1,3 @@
-// frontend/app/waiting/[id]/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -39,7 +38,7 @@ export default function WaitingRoomPage() {
 
   const handleAddFakePlayer = async () => {
     try {
-      // Prompt the dealer for the fake player's name
+      // Generate a fake player's name
       const fakeName = generateRandomName();
 
       const response = await fetch(
@@ -79,6 +78,23 @@ export default function WaitingRoomPage() {
     navigator.clipboard.writeText(gameId);
     setIsCopied(true);
     setTimeout(() => setIsCopied(false), 2000);
+  };
+
+  // NEW: Function to handle leaving the game
+  const handleLeaveGame = async () => {
+    try {
+      const response = await fetch(
+        `${backendUrl}/api/game/${gameId}/leave?playerId=${userRole?.playerId}`,
+        { method: "POST" },
+      );
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || "Failed to leave game");
+      }
+      router.push("/poker");
+    } catch (err) {
+      setError((err as Error).message);
+    }
   };
 
   if (!gameRoom) return <p className="text-center p-8">Loading...</p>;
@@ -137,6 +153,33 @@ export default function WaitingRoomPage() {
                               Visually Impaired
                             </span>
                           )}
+                          {/* For dealer: add Kick button for other players */}
+                          {userRole?.role === "DEALER" &&
+                            player.id !== userRole?.playerId && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={async () => {
+                                  try {
+                                    const kickResponse = await fetch(
+                                      `${backendUrl}/api/game/${gameId}/leave?playerId=${player.id}`,
+                                      { method: "POST" },
+                                    );
+                                    if (!kickResponse.ok) {
+                                      const errorText =
+                                        await kickResponse.text();
+                                      throw new Error(
+                                        errorText || "Failed to kick player",
+                                      );
+                                    }
+                                  } catch (err) {
+                                    setError((err as Error).message);
+                                  }
+                                }}
+                              >
+                                Kick
+                              </Button>
+                            )}
                         </div>
                       </li>
                     ))}
@@ -188,7 +231,7 @@ export default function WaitingRoomPage() {
         </Card>
 
         <div className="text-center">
-          <Button variant="ghost" onClick={() => router.push("/poker")}>
+          <Button variant="ghost" onClick={handleLeaveGame}>
             Leave Game
           </Button>
         </div>

@@ -171,6 +171,20 @@ public class GameRoomService {
         notifyRoomUpdate(gameCode);
     }
 
+    // NEW METHOD: removePlayerFromRoom
+    public boolean removePlayerFromRoom(String gameCode, String playerId) {
+        GameRoom room = gameRooms.get(gameCode);
+        if (room == null) {
+            return false;
+        }
+        boolean removed = room.getPlayers().removeIf(p -> p.getId().equals(playerId));
+        if (removed) {
+            gameLogService.addLogAction(room, "Player " + playerId + " has left the game.");
+            notifyRoomUpdate(gameCode);
+        }
+        return removed;
+    }
+
     private void notifyRoomUpdate(String gameCode) {
         GameRoom room = gameRooms.get(gameCode);
         if (room != null) {
