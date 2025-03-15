@@ -1,9 +1,12 @@
+// frontend/lib/game-context.tsx
 "use client";
 
 import React, { createContext, useState, useContext, ReactNode } from "react";
-import { UserRole } from "./types";
+import { GameRoomType, UserRole } from "./types";
 
 type GameContextType = {
+  gameRoom: GameRoomType | null;
+  setGameRoom: React.Dispatch<React.SetStateAction<GameRoomType | null>>;
   userRole: {
     role: UserRole | null;
     playerId?: string;
@@ -19,7 +22,7 @@ type GameContextType = {
 const GameContext = createContext<GameContextType | undefined>(undefined);
 
 export const GameProvider = ({ children }: { children: ReactNode }) => {
-  // User role state (PLAYER or DEALER)
+  const [gameRoom, setGameRoom] = useState<GameRoomType | null>(null);
   const [userRole, setUserRole] = useState<{
     role: UserRole | null;
     playerId?: string;
@@ -28,6 +31,8 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
   return (
     <GameContext.Provider
       value={{
+        gameRoom,
+        setGameRoom,
         userRole,
         setUserRole,
       }}
