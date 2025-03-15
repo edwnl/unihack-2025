@@ -62,6 +62,7 @@ export default function DealerView({ gameId }: DealerViewProps) {
   const [errorMsg, setErrorMsg] = useState<string>("");
   const [raiseInput, setRaiseInput] = useState<number>(0);
   const [cardsSeen, setCardsSeen] = useState(new Set<string>());
+  const [scanDelay, setScanDelay] = useState(false);
 
   // Use Azure speech recognition hook
   const {
@@ -105,7 +106,12 @@ export default function DealerView({ gameId }: DealerViewProps) {
 
   // Handler for scanning a card
   const handleScanCard = () => {
+    if (scanDelay) return; // Prevent scanning if not allowed
     if (!canScan) return; // Prevent scanning if not allowed
+    setScanDelay(true);
+    setTimeout(() => {
+      setScanDelay(false);
+    }, 100);
 
     const suits = ["HEARTS", "DIAMONDS", "CLUBS", "SPADES"];
     const ranks = [
