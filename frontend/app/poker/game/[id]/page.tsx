@@ -1,7 +1,7 @@
 // frontend/app/game/[id]/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useGameContext } from "@/lib/game-context";
 import { connectWebSocket, disconnectWebSocket } from "@/lib/websocket-service";
