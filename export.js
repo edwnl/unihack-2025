@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 
 // Configuration
-const MAX_DEPTH = 4;
+const MAX_DEPTH = 9;
 const EXCLUDED_DIRS = [
   "node_modules",
   "dist",

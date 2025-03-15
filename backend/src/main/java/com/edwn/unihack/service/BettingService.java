@@ -51,14 +51,18 @@ public class BettingService {
             return;
         }
 
+        // Make sure player can't bet more than they have
+        int maxBet = currentPlayer.getChips();
+        int actualBet = Math.min(amount, maxBet);
+
         // Place bet
-        currentPlayer.setChips(currentPlayer.getChips() - amount);
-        room.getBets().put(playerId, amount);
-        room.setCurrentBet(amount);
+        currentPlayer.setChips(currentPlayer.getChips() - actualBet);
+        room.getBets().put(playerId, actualBet);
+        room.setCurrentBet(actualBet);
 
         // Update player's last action
         currentPlayer.setLastAction("BET");
-        currentPlayer.setLastActionAmount(amount);
+        currentPlayer.setLastActionAmount(actualBet);
 
         // Move to next player
         room.moveToNextPlayer();
@@ -79,15 +83,18 @@ public class BettingService {
         int currentPlayerBet = room.getBets().getOrDefault(playerId, 0);
         int amountToCall = currentBet - currentPlayerBet;
 
+        // Limit call to player's available chips
+        int actualCall = Math.min(amountToCall, currentPlayer.getChips());
+
         // Place call
-        if (amountToCall > 0) {
-            currentPlayer.setChips(currentPlayer.getChips() - amountToCall);
-            room.getBets().put(playerId, currentBet);
+        if (actualCall > 0) {
+            currentPlayer.setChips(currentPlayer.getChips() - actualCall);
+            room.getBets().put(playerId, currentPlayerBet + actualCall);
         }
 
         // Update player's last action
         currentPlayer.setLastAction("CALL");
-        currentPlayer.setLastActionAmount(amountToCall);
+        currentPlayer.setLastActionAmount(actualCall);
 
         // Move to next player
         room.moveToNextPlayer();
@@ -103,17 +110,22 @@ public class BettingService {
             return;
         }
 
-        // Calculate total bet (current bet + raise amount)
-        int newBet = room.getCurrentBet() + amount;
+        // Calculate total amount needed (current bet + raise amount)
+        int currentPlayerBet = room.getBets().getOrDefault(playerId, 0);
+        int totalNeeded = room.getCurrentBet() - currentPlayerBet + amount;
+
+        // Limit to player's available chips
+        int actualAmount = Math.min(totalNeeded, currentPlayer.getChips());
+        int newBet = currentPlayerBet + actualAmount;
 
         // Place raise
-        currentPlayer.setChips(currentPlayer.getChips() - newBet);
+        currentPlayer.setChips(currentPlayer.getChips() - actualAmount);
         room.getBets().put(playerId, newBet);
         room.setCurrentBet(newBet);
 
         // Update player's last action
         currentPlayer.setLastAction("RAISE");
-        currentPlayer.setLastActionAmount(amount);
+        currentPlayer.setLastActionAmount(actualAmount);
 
         // Move to next player
         room.moveToNextPlayer();
@@ -167,11 +179,19 @@ public class BettingService {
             room.setBets(new HashMap<>());
             room.setCurrentBet(0);
 
+            // Check if all players are all-in except possibly one
+            boolean allPlayersAllIn = isAllPlayersAllInOrFolded(room);
+
             // Move to next stage based on current state
             switch (room.getGameState()) {
                 case PREFLOP:
                     gameStateService.advanceToNextStage(room, GameRoom.GameState.FLOP,
                             "Moving to FLOP stage. Waiting for flop cards.");
+
+                    // If all active players are all-in, setup for fast dealing
+                    if (allPlayersAllIn) {
+                        gameLogService.addLogAction(room, "All players are all-in. Fast-forwarding to showdown after dealing community cards.");
+                    }
                     break;
                 case FLOP:
                     gameStateService.advanceToNextStage(room, GameRoom.GameState.TURN,
@@ -195,15 +215,66 @@ public class BettingService {
         }
     }
 
+    // Add this helper method to BettingService class
+    private boolean isAllPlayersAllInOrFolded(GameRoom room) {
+        int activeNonAllInPlayers = 0;
+
+        for (Player player : room.getPlayers()) {
+            if (player.isFolded() || !player.isActive()) continue;
+
+            if (player.getChips() > 0) {
+                activeNonAllInPlayers++;
+            }
+        }
+
+        // If there's only 0 or 1 player with chips, all others are all-in
+        return activeNonAllInPlayers <= 1;
+    }
+
     public boolean isRoundComplete(GameRoom room) {
         if (room.isWaitingForCards()) {
             return false;
         }
 
         int activePlayers = 0;
+        int activeNonAllInPlayers = 0;
         int targetBet = room.getCurrentBet();
         Set<String> actedPlayerIds = new HashSet<>();
 
+        // Check if all active players are all-in except possibly one
+        for (Player player : room.getPlayers()) {
+            if (player.isFolded() || !player.isActive()) continue;
+
+            activePlayers++;
+            // Check if player is all-in (chips = 0)
+            if (player.getChips() > 0) {
+                activeNonAllInPlayers++;
+            }
+        }
+
+        // If all players are all-in or all but one (who has matched the bet), fast forward
+        if (activeNonAllInPlayers <= 1) {
+            // Check if the one non-all-in player has matched the current bet
+            if (activeNonAllInPlayers == 1) {
+                Player nonAllInPlayer = room.getPlayers().stream()
+                        .filter(p -> p.isActive() && !p.isFolded() && p.getChips() > 0)
+                        .findFirst()
+                        .orElse(null);
+
+                if (nonAllInPlayer != null) {
+                    int playerBet = room.getBets().getOrDefault(nonAllInPlayer.getId(), 0);
+                    // If they haven't matched the bet, we can't fast forward
+                    if (playerBet < targetBet) {
+                        return false;
+                    }
+                }
+            }
+
+            // All players are all-in or all bets are matched - we can fast forward
+            return true;
+        }
+
+        // Rest of the original method remains the same...
         // Find the most recent betting round start
         LocalDateTime roundStartTime = null;
         for (int i = room.getActions().size() - 1; i >= 0; i--) {
@@ -267,7 +338,6 @@ public class BettingService {
         for (Player player : room.getPlayers()) {
             if (player.isFolded() || !player.isActive()) continue;
 
-            activePlayers++;
             int playerBet = room.getBets().getOrDefault(player.getId(), 0);
 
             // Check if player hasn't matched the current bet
