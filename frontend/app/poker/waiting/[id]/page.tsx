@@ -1,3 +1,4 @@
+// frontend/app/poker/waiting/[id]/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -7,12 +8,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useGameContext } from "@/lib/game-context";
 import { connectWebSocket, disconnectWebSocket } from "@/lib/websocket-service";
 import { generateRandomName } from "@/lib/name-generator";
+import { toast } from "sonner";
 
 export default function WaitingRoomPage() {
   const params = useParams();
   const router = useRouter();
   const gameId = params.id as string;
-  const { gameRoom, setGameRoom, userRole } = useGameContext();
+  const { gameRoom, setGameRoom, userRole, clearUserRole, isLoading } =
+    useGameContext();
   const [error, setError] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);
 
@@ -22,6 +25,8 @@ export default function WaitingRoomPage() {
 
   // Connect to WebSocket
   useEffect(() => {
+    if (isLoading) return; // Wait until session loading is complete
+
     connectWebSocket(gameId, (updatedRoom) => {
       setGameRoom(updatedRoom);
 
@@ -36,26 +41,54 @@ export default function WaitingRoomPage() {
         } else {
           // Otherwise, assume the game has started
           router.push(`/poker/game/${gameId}`);
+          toast("Game has started!");
         }
+      } else {
+        if (userRole?.role)
+          toast(`Connected to waiting room ${gameId} via websocket!`);
       }
     });
 
     return () => {
       disconnectWebSocket();
     };
-  }, [gameId, setGameRoom, userRole, router]);
+  }, [gameId, setGameRoom, userRole, router, isLoading]);
 
-  // If the current user is a PLAYER and is no longer in the room, redirect them back
+  // Check if user has access to this room and the room exists
   useEffect(() => {
-    if (userRole?.role === "PLAYER" && gameRoom) {
-      const isInRoom = gameRoom.players.some(
-        (player) => player.id === userRole.playerId,
-      );
-      if (!isInRoom) {
-        router.push("/poker");
-      }
+    if (isLoading) {
+      return;
     }
-  }, [gameRoom, userRole, router]);
+
+    if (!userRole?.role) {
+      toast("You don't have access to this waiting room!");
+      router.push("/poker");
+      return;
+    }
+
+    // Fetch the latest game state to verify the game still exists
+    fetch(`${backendUrl}/api/game/${gameId}`)
+      .then((response) => {
+        if (!response.ok) {
+          clearUserRole();
+          toast("That room no longer exists!");
+          throw new Error("Game no longer exists");
+        }
+        return response.json();
+      })
+      .catch((error) => {
+        console.error("Error connecting to room:", error);
+        router.push("/poker");
+      });
+  }, [
+    isLoading,
+    userRole,
+    gameId,
+    router,
+    setGameRoom,
+    clearUserRole,
+    backendUrl,
+  ]);
 
   const handleAddFakePlayer = async () => {
     try {
@@ -77,6 +110,7 @@ export default function WaitingRoomPage() {
       }
     } catch (err) {
       setError((err as Error).message);
+      toast.error("Failed to add fake player");
     }
   };
 
@@ -92,12 +126,14 @@ export default function WaitingRoomPage() {
       }
     } catch (err) {
       setError((err as Error).message);
+      toast.error("Failed to start game");
     }
   };
 
   const copyGameCode = () => {
     navigator.clipboard.writeText(gameId);
     setIsCopied(true);
+    toast.success("Game code copied to clipboard!");
     setTimeout(() => setIsCopied(false), 2000);
   };
 
@@ -125,13 +161,20 @@ export default function WaitingRoomPage() {
               : "Failed to leave game"),
         );
       }
+      clearUserRole();
       router.push("/poker");
     } catch (err) {
       setError((err as Error).message);
+      toast.error("Failed to leave game");
     }
   };
 
-  if (!gameRoom) return <p className="text-center p-8">Loading...</p>;
+  // Add a loading indicator for when the context is still initializing
+  if (isLoading) {
+    return <p className="text-center p-8">Loading session data...</p>;
+  }
+
+  if (!gameRoom) return <p className="text-center p-8">Loading room data...</p>;
 
   return (
     <main className="flex min-h-screen flex-col items-center p-4 md:p-8">
@@ -208,6 +251,7 @@ export default function WaitingRoomPage() {
                                     }
                                   } catch (err) {
                                     setError((err as Error).message);
+                                    toast.error("Failed to kick player");
                                   }
                                 }}
                               >
