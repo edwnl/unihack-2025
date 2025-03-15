@@ -70,8 +70,7 @@ export default function DealerView({ gameId }: DealerViewProps) {
   const allInRef = useRef<HTMLButtonElement>(null);
   const callRef = useRef<HTMLButtonElement>(null);
 
-        
-        (() => {
+  useEffect(() => {
     if (raiseRef.current) {
       raiseRef.current.click();
     }
@@ -222,6 +221,7 @@ export default function DealerView({ gameId }: DealerViewProps) {
       }
     } else if (action === "raise" || action === "bet") {
       setRaiseInput(extractNumber(normalized) || 0);
+      setRaiseInputVoice(extractNumber(normalized) || 0);
       if (raiseRef.current) {
         raiseRef.current.click();
       }
