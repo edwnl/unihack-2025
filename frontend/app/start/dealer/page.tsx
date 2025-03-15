@@ -17,17 +17,16 @@ export default function DealerCreatePage() {
     setError(null);
 
     try {
-    // temporary 
+      // temporary
       setUserRole({
         role: "DEALER",
         playerId: "temp-dealer-id",
       });
 
-      const mockGameCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-      
+      //   const mockGameCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+
       // home for now
       router.push("/");
-      
     } catch (err) {
       setError((err as Error).message);
     } finally {

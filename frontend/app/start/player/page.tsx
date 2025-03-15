@@ -15,7 +15,7 @@ export default function PlayerJoinPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-    // player states
+  // player states
   const [name, setName] = useState("");
   const [gameCode, setGameCode] = useState("");
   const [online, setOnline] = useState(true);
@@ -31,15 +31,14 @@ export default function PlayerJoinPage() {
     setError(null);
 
     try {
-        // temp 
+      // temp
       setUserRole({
         role: "PLAYER",
         playerId: "temp-player-id",
       });
 
-      // home 
+      // home
       router.push("/");
-      
     } catch (err) {
       setError((err as Error).message);
     } finally {
