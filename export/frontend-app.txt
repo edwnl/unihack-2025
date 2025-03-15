@@ -1,0 +1,146 @@
+# frontend-app Files
+
+### frontend/app/layout.tsx
+
+```tsx
+import type { Metadata } from "next";
+import "./globals.css";
+import { Poppins } from "next/font/google";
+import { GameProvider } from "@/lib/game-context";
+import DebugNavigation from "@/components/debug-navigation";
+
+const poppins = Poppins({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+});
+
+export const metadata: Metadata = {
+  title: "Poker Game",
+  description: "Accessible poker game for everyone",
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <html lang="en" className="dark">
+      <body className={`${poppins.className} antialiased`}>
+        <DebugNavigation />
+        <GameProvider>{children}</GameProvider>
+      </body>
+    </html>
+  );
+}
+
+```
+
+
+### frontend/app/page.tsx
+
+```tsx
+"use client";
+import Link from "next/link";
+import { useEffect, useState } from "react";
+
+export default function Home() {
+  // State for scroll tracking and active section
+  const [hasScrolled, setHasScrolled] = useState(false);
+  const [activeSection, setActiveSection] = useState(-1);
+  
+  // Sections content
+  const sections = [
+    { title: "redefining inclusivity" },
+    { title: "highlighting accessibility" },
+    { title: "playing smarter" },
+    { title: "shuffl 🂡", isCallToAction: true },
+  ];
+  
+  useEffect(() => {
+    // Function to calculate which section is in view
+    function calculateActiveSection() {
+      // Set scroll state
+      setHasScrolled(window.scrollY > 10);
+      
+      // Check which section is in middle third of viewport
+      const sectionElements = document.querySelectorAll('.section-animated');
+      let foundActive = false;
+      
+      sectionElements.forEach((el, index) => {
+        const rect = el.getBoundingClientRect();
+        const windowHeight = window.innerHeight;
+        const isInMiddleThird = rect.top <= windowHeight * 0.6 && rect.bottom >= windowHeight * 0.4;
+        
+        if (isInMiddleThird) {
+          setActiveSection(index);
+          foundActive = true;
+        }
+      });
+      
+      if (!foundActive) {
+        setActiveSection(-1);
+      }
+    }
+    
+    // Add scroll event listener
+    window.addEventListener('scroll', calculateActiveSection);
+    
+    // Run on mount to set initial active section
+    calculateActiveSection();
+    
+    // Run again after a short delay to ensure all calculations are correct
+    const initialTimer = setTimeout(calculateActiveSection, 200);
+    
+    // Clean up
+    return () => {
+      window.removeEventListener('scroll', calculateActiveSection);
+      clearTimeout(initialTimer);
+    };
+  }, []); // Empty dependency array as we don't reference any external variables
+  
+  return (
+    <main className="flex flex-col min-h-screen pb-16">
+      {/* Hero section */}
+      <section className="h-screen flex items-center justify-center">
+        <h1 className="text-5xl md:text-7xl font-bold text-center">
+          A new card game
+          <br />
+          <span
+            className={`transition-colors duration-300 ${hasScrolled ? "text-[#ffe330]" : ""}`}
+          >
+            experience.
+          </span>
+        </h1>
+      </section>
+      
+      {/* Animated sections */}
+      {sections.map((section, index) => (
+        <section
+          key={index}
+          className={`section-animated ${section.isCallToAction ? "min-h-[80vh] flex flex-col" : "min-h-[50vh] flex"} items-center justify-center ${!section.isCallToAction ? "py-16" : ""} ${section.isCallToAction ? "gap-4" : ""}`}
+        >
+          <h2
+            className={`text-4xl md:text-6xl font-bold text-center transition-colors duration-300 ${activeSection === index ? "text-[#ffe330]" : ""}`}
+          >
+            {section.title}
+          </h2>
+          
+          {section.isCallToAction && (
+            <>
+              <Link href="/pick-game" className="inline-block">
+                <div 
+                  className={`bg-primary hover:bg-white text-black transition-colors duration-300 text-lg px-8 py-4 rounded-md font-medium shadow inline-flex items-center justify-center ${activeSection === index ? "bg-[#ffe330]" : ""}`}
+                >
+                  Get Started Now
+                </div>
+              </Link>
+              <p className="text-gray-300 mt-2">...because fun is for everyone!</p>
+            </>
+          )}
+        </section>
+      ))}
+    </main>
+  );
+}
+```

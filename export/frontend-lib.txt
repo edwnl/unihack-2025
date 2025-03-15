@@ -1,0 +1,1277 @@
+# frontend-lib Files
+
+### frontend/lib/ai-advisor-service.ts
+
+```ts
+// frontend/lib/ai-advisor-service.ts
+import { CardType, GameRoomType } from "./types";
+import { getPokerPosition } from "./utils";
+import { callOpenAI, parseGTOAdvice } from "./openai-service";
+
+// Types for the AI advisor
+export type HandStrength =
+  | "High Card"
+  | "One Pair"
+  | "Two Pair"
+  | "Three of a Kind"
+  | "Straight"
+  | "Flush"
+  | "Full House"
+  | "Four of a Kind"
+  | "Straight Flush"
+  | "Royal Flush";
+
+export type ActionRecommendation = {
+  action: "Check" | "Call" | "Bet" | "Raise" | "Fold";
+  betSize?: number;
+  confidence: number;
+  explanation: string;
+  handStrength?: HandStrength;
+  equity?: number;
+  probabilities?: {
+    check: number;
+    call: number;
+    bet: number;
+    raise: number;
+    fold: number;
+  };
+  potOdds?: number;
+  foldEquity?: number;
+  outs?: number;
+  drawStrength?: string;
+};
+
+// frontend/lib/ai-advisor-service.ts (updated getAIRecommendation function)
+export const getAIRecommendation = async (
+  gameRoom: GameRoomType,
+  playerId: string,
+): Promise<ActionRecommendation> => {
+  try {
+    // Find the current player
+    const player = gameRoom.players.find((p) => p.id === playerId);
+    if (!player) {
+      throw new Error("Player not found");
+    }
+
+    // Get player position
+    const playerIndex = gameRoom.players.findIndex((p) => p.id === playerId);
+    const position = getPokerPosition(
+      playerIndex,
+      gameRoom.players.length,
+      gameRoom.smallBlindPosition || 0,
+    );
+
+    // Format the hole cards
+    const holeCards = formatCards(player.hand?.cards || []);
+
+    // Format the community cards
+    const communityCards = formatCards(gameRoom.communityCards || []);
+
+    // Calculate how many active players remain
+    const activePlayers = gameRoom.players.filter(
+      (p) => p.active && !p.folded,
+    ).length;
+
+    // Calculate pot odds if applicable
+    const currentBet = gameRoom.currentBet || 0;
+    const playerBet = gameRoom.bets ? gameRoom.bets[playerId] || 0 : 0;
+    const toCall = currentBet - playerBet;
+    const potOdds = toCall > 0 ? toCall / (gameRoom.pot + toCall) : 0;
+
+    // Calculate fold equity (simplified estimate based on position and player count)
+    const foldEquity = calculateFoldEquity(
+      position,
+      activePlayers,
+      gameRoom.gameState,
+    );
+
+    // Calculate outs if on a draw
+    const outs = calculateOuts(holeCards, communityCards, gameRoom.gameState);
+
+    // Determine available actions
+    const canCheck = toCall === 0;
+    const availableActions = [];
+    availableActions.push("Fold");
+
+    if (canCheck) {
+      availableActions.push("Check");
+    } else {
+      availableActions.push("Call");
+    }
+
+    if (player.chips > 0) {
+      if (canCheck) {
+        availableActions.push("Bet");
+      } else {
+        availableActions.push("Raise");
+      }
+    }
+
+    // Analyze hole cards to pre-prompt the AI about hand strength
+    const hasPocketPair =
+      holeCards.length >= 3 && holeCards.charAt(0) === holeCards.charAt(2);
+    const pairRank = hasPocketPair ? holeCards.charAt(0) : "";
+    const isPremiumPair = hasPocketPair && "AKQJT".includes(pairRank);
+    const isMediumPair = hasPocketPair && "98765".includes(pairRank);
+
+    // Construct the prompt for the AI
+    const prompt = `
+You are a poker AI trained in Game Theory Optimal (GTO) strategy with a focus on aggressive but mathematically sound play.
+Analyze the current game state and recommend the best action from the AVAILABLE ACTIONS ONLY.
+
+### Game State:
+- Game Stage: ${gameRoom.gameState}
+- Number of Players: ${activePlayers} active
+- Position: ${position}
+- Hole Cards: ${holeCards}
+- Board: ${communityCards}
+- Pot Size: ${gameRoom.pot}
+- Current Bet: ${currentBet}
+- To Call: ${toCall}
+- Player Chips: ${player.chips}
+- Pot Odds: ${potOdds.toFixed(2)}
+- Fold Equity Estimate: ${foldEquity.toFixed(2)}
+- Outs Estimate: ${outs}
+- AVAILABLE ACTIONS: ${availableActions.join(", ")}
+
+### IMPORTANT HAND STRENGTH CONTEXT:
+${isPremiumPair ? `You have a premium pocket pair (${formatReadableRank(pairRank)}s). This is a VERY strong hand that should almost never be folded preflop, and should typically be played aggressively.` : ""}
+${isMediumPair ? `You have a medium pocket pair (${formatReadableRank(pairRank)}s). This is a decent hand that can be played for set value and should rarely be folded preflop unless facing excessive aggression.` : ""}
+${hasPocketPair && !isPremiumPair && !isMediumPair ? `You have a small pocket pair. This hand has set mining value but can be folded to large bets.` : ""}
+
+### STRATEGY GUIDELINES:
+1. Premium hands like AA, KK, QQ, JJ, TT should be played aggressively and almost never folded preflop.
+2. Position matters - late position allows more aggressive play with marginal hands.
+3. Consider pot odds when calling with drawing hands.
+4. Value bet when you likely have the best hand.
+5. If "Check" is an available option, you should almost never recommend "Fold".
+6. Balance aggression with proper bankroll management.
+7. Consider how the board texture interacts with your hand.
+8. Premium pairs (AA, KK, QQ) maintain their strength through all streets unless the board is very coordinated.
+
+### Provide a GTO-Based Recommendation:
+- **Action:** (MUST BE ONE OF: ${availableActions.join(", ")})
+- **Recommended Bet Size:** (if applicable) 
+- **Probability Distribution:** (% for each AVAILABLE action only)
+- **Short Explanation:** Why is this the best move? (ONE TO TWO SENTENCES ONLY)
+- **Hand Strength:** Current hand strength
+- **Equity:** Approximate equity against opponents' ranges
+`;
+
+    // Check if we have an API key
+    const apiKey = process.env.NEXT_PUBLIC_OPENAI_API_KEY;
+    console.log("API Key available:", !!apiKey);
+    console.log("Available actions:", availableActions);
+
+    if (apiKey) {
+      // If we have an API key, make a real call to OpenAI
+      try {
+        console.log("Attempting to call OpenAI API...");
+        const response = await callOpenAI(prompt);
+        console.log("OpenAI API response received");
+        const parsedAdvice = parseGTOAdvice(response, availableActions);
+        console.log("Using real AI recommendation");
+
+        // Add the additional poker metrics
+        parsedAdvice.potOdds = potOdds;
+        parsedAdvice.foldEquity = foldEquity;
+        parsedAdvice.outs = outs;
+        parsedAdvice.drawStrength = getDrawStrength(outs);
+
+        // Safety check for premium pairs - override fold recommendations
+        if (
+          isPremiumPair &&
+          gameRoom.gameState === "PREFLOP" &&
+          parsedAdvice.action === "Fold"
+        ) {
+          console.log(
+            "Safety override: Caught AI attempting to fold premium pair:",
+            pairRank,
+          );
+          if (availableActions.includes("Call")) {
+            parsedAdvice.action = "Call";
+            parsedAdvice.explanation = `Premium pocket ${formatReadableRank(pairRank)}s should not be folded preflop. Calling to see the flop.`;
+            parsedAdvice.confidence = 0.9;
+          } else if (availableActions.includes("Check")) {
+            parsedAdvice.action = "Check";
+            parsedAdvice.explanation = `Premium pocket ${formatReadableRank(pairRank)}s should not be folded preflop. Checking to see the flop.`;
+            parsedAdvice.confidence = 0.9;
+          }
+        }
+
+        // Add default probabilities based on the action recommended if missing
+        if (
+          !parsedAdvice.probabilities ||
+          Object.values(parsedAdvice.probabilities).every((p) => p === 0)
+        ) {
+          console.log(
+            "Adding fallback probabilities based on recommended action",
+          );
+
+          // Create default distribution
+          const fallbackProbabilities: Record<string, number> = {
+            check: 0,
+            call: 0,
+            bet: 0,
+            raise: 0,
+            fold: 0,
+          };
+
+          // Filter to only include available actions
+          const availableActionsLower = availableActions.map((a) =>
+            a.toLowerCase(),
+          );
+
+          // Primary action gets 70%
+          if (parsedAdvice.action.toLowerCase() in fallbackProbabilities) {
+            fallbackProbabilities[
+              parsedAdvice.action.toLowerCase() as keyof typeof fallbackProbabilities
+            ] = 0.7;
+          }
+
+          // Distribute remaining 30% among other available actions
+          const otherActions = availableActionsLower.filter(
+            (act) =>
+              act !== parsedAdvice.action.toLowerCase() &&
+              act in fallbackProbabilities,
+          );
+
+          const otherActionWeight =
+            otherActions.length > 0 ? 0.3 / otherActions.length : 0;
+          otherActions.forEach((act) => {
+            fallbackProbabilities[act as keyof typeof fallbackProbabilities] =
+              otherActionWeight;
+          });
+
+          parsedAdvice.probabilities = fallbackProbabilities as {
+            check: number;
+            call: number;
+            bet: number;
+            raise: number;
+            fold: number;
+          };
+        }
+
+        return parsedAdvice;
+      } catch (error) {
+        console.error("Error calling OpenAI API:", error);
+        console.log("Falling back to mock implementation");
+        // Fall back to mock recommendation if API call fails
+        throw Error("Error calling open ai api");
+      }
+    } else {
+      // If no API key, use mock recommendation
+      console.log("No API key found, using mock implementation");
+      throw Error("No API Key");
+    }
+  } catch (error) {
+    console.error("Error getting AI recommendation:", error);
+    return {
+      action: "Fold",
+      confidence: 0.6,
+      explanation:
+        "Error occurred while analyzing. Conservative play is recommended.",
+      probabilities: {
+        check: 0.05,
+        call: 0.05,
+        bet: 0.05,
+        raise: 0.05,
+        fold: 0.8,
+      },
+    };
+  }
+};
+
+// Helper function for readable rank
+function formatReadableRank(rank: string): string {
+  switch (rank) {
+    case "A":
+      return "Ace";
+    case "K":
+      return "King";
+    case "Q":
+      return "Queen";
+    case "J":
+      return "Jack";
+    case "T":
+      return "10";
+    default:
+      return rank;
+  }
+}
+
+// Calculate fold equity (how likely opponents are to fold)
+function calculateFoldEquity(
+  position: string,
+  activePlayers: number,
+  gameState: string,
+): number {
+  // Higher fold equity in late position and fewer players
+  let baseEquity = 0.3; // Base fold equity
+
+  // Position adjustment
+  if (["BTN", "CO", "HJ"].includes(position)) {
+    baseEquity += 0.2; // Late position has higher fold equity
+  } else if (["SB", "BB"].includes(position)) {
+    baseEquity -= 0.1; // Early position has lower fold equity
+  }
+
+  // Player count adjustment
+  baseEquity -= (activePlayers - 2) * 0.05; // More players = less fold equity
+
+  // Game stage adjustment
+  if (gameState === "PREFLOP") {
+    baseEquity += 0.05; // More fold equity preflop
+  } else if (gameState === "RIVER") {
+    baseEquity -= 0.1; // Less fold equity on river
+  }
+
+  // Ensure it's within reasonable bounds
+  return Math.max(0.1, Math.min(0.7, baseEquity));
+}
+
+// Calculate outs (number of cards that could improve your hand)
+function calculateOuts(
+  holeCards: string,
+  communityCards: string,
+  gameState: string,
+): number {
+  if (!holeCards || holeCards === "None" || gameState === "PREFLOP") {
+    return 0; // No outs calculation preflop
+  }
+
+  // This is a simplified version - in a real system, you'd analyze the actual hands
+  // and determine outs based on possible draws
+
+  // Simplified detection of potential draws
+  const hasFlushDraw = detectFlushDraw();
+  const hasStraightDraw = detectStraightDraw();
+  const hasOvercards = detectOvercards(holeCards);
+
+  let outs = 0;
+  if (hasFlushDraw) outs += 9; // Flush draw typically has 9 outs
+  if (hasStraightDraw === "open") outs += 8; // Open-ended straight draw has 8 outs
+  if (hasStraightDraw === "gutshot") outs += 4; // Gutshot straight draw has 4 outs
+  if (hasOvercards) outs += 6; // Typically 6 outs for overcards (two overcards)
+
+  // Don't double count some outs
+  if (outs > 15) outs = Math.floor(outs * 0.8); // Reduce for overlapping outs
+
+  return outs;
+}
+
+// Get a descriptive strength of a drawing hand based on outs
+function getDrawStrength(outs: number): string | undefined {
+  if (outs === 0) return undefined;
+  if (outs >= 12) return "Monster Draw";
+  if (outs >= 8) return "Strong Draw";
+  if (outs >= 5) return "Decent Draw";
+  return "Weak Draw";
+}
+
+// Simplified draw detection functions
+function detectFlushDraw(): boolean {
+  // Very simplified - in production you'd count suits
+  return Math.random() < 0.2; // 20% chance to detect a flush draw
+}
+
+function detectStraightDraw(): "open" | "gutshot" | false {
+  // Very simplified - in production you'd analyze consecutive ranks
+  const r = Math.random();
+  if (r < 0.15) return "open"; // 15% chance for open-ended straight draw
+  if (r < 0.3) return "gutshot"; // 15% chance for gutshot straight draw
+  return false;
+}
+
+function detectOvercards(holeCards: string): boolean {
+  // Very simplified - in production you'd compare hole card ranks to board
+  // Check if hole cards contain A, K, Q, J
+  const hasHighCards = /[AKQJ]/.test(holeCards);
+  // Random factor - not all high cards are overcards
+  return hasHighCards && Math.random() < 0.7;
+}
+
+// Helper function to format cards for the prompt
+export const formatCards = (cards: CardType[]): string => {
+  if (!cards.length) return "None";
+
+  return cards
+    .map((card) => {
+      const rank = formatRank(card.rank);
+      const suit = formatSuit(card.suit);
+      return `${rank}${suit}`;
+    })
+    .join(" ");
+};
+
+// Helper function to format rank
+export const formatRank = (rank: string): string => {
+  switch (rank) {
+    case "ACE":
+      return "A";
+    case "KING":
+      return "K";
+    case "QUEEN":
+      return "Q";
+    case "JACK":
+      return "J";
+    case "TEN":
+      return "T";
+    case "NINE":
+      return "9";
+    case "EIGHT":
+      return "8";
+    case "SEVEN":
+      return "7";
+    case "SIX":
+      return "6";
+    case "FIVE":
+      return "5";
+    case "FOUR":
+      return "4";
+    case "THREE":
+      return "3";
+    case "TWO":
+      return "2";
+    default:
+      return rank;
+  }
+};
+
+// Helper function to format suit
+export const formatSuit = (suit: string): string => {
+  switch (suit) {
+    case "HEARTS":
+      return "h";
+    case "DIAMONDS":
+      return "d";
+    case "CLUBS":
+      return "c";
+    case "SPADES":
+      return "s";
+    default:
+      return suit;
+  }
+};
+
+// Helper to evaluate hand strength (simplified for hackathon)
+export const evaluateHandStrength = (holeCards: string): HandStrength => {
+  // This would be a complex function in production
+  // For the hackathon, we'll return a simplified evaluation
+  if (!holeCards || holeCards === "None") return "High Card";
+
+  // Check for pocket pairs
+  if (holeCards.charAt(0) === holeCards.charAt(2)) {
+    return "One Pair";
+  }
+
+  // Check for high cards
+  if (holeCards.includes("A") || holeCards.includes("K")) {
+    return "High Card";
+  }
+
+  return "High Card";
+};
+
+```
+
+
+### frontend/lib/fuzzy-match.ts
+
+```ts
+// frontend/lib/fuzzy-match.ts
+/**
+ * Simple fuzzy matching for poker voice commands
+ */
+
+// Define the valid poker actions and their potential variations/misspellings
+const POKER_ACTIONS = {
+  fold: [
+    "fold",
+    "folds",
+    "folding",
+    "hold",
+    "holds",
+    "old",
+    "olds",
+    "fault",
+    "faults",
+    "foul",
+    "fouls",
+    "fould",
+    "foulds",
+    "cold",
+  ],
+  check: [
+    "check",
+    "checks",
+    "checking",
+    "czech",
+    "czechs",
+    "cheque",
+    "cheques",
+    "chalk",
+    "chalks",
+    "chuck",
+    "chucks",
+    "deck",
+    "decks",
+    "chick",
+    "chicks",
+  ],
+  call: [
+    "call",
+    "calls",
+    "calling",
+    "cold",
+    "colds",
+    "coal",
+    "coals",
+    "paul",
+    "pauls",
+    "tall",
+    "talls",
+    "col",
+    "cols",
+    "fall",
+    "falls",
+    "hall",
+    "halls",
+  ],
+  raise: [
+    "raise",
+    "raises",
+    "raising",
+    "rays",
+    "ray",
+    "race",
+    "races",
+    "erase",
+    "erases",
+    "rice",
+    "rices",
+    "rose",
+    "roses",
+    "raised",
+  ],
+  bet: [
+    "bet",
+    "bets",
+    "betting",
+    "bed",
+    "beds",
+    "bent",
+    "bents",
+    "beat",
+    "beats",
+    "best",
+    "bests",
+    "bat",
+    "bats",
+  ],
+  allin: [
+    "allin",
+    "all-in",
+    "all in",
+    "all",
+    "all ins",
+    "ollie",
+    "olin",
+    "allen",
+    "online",
+    "hauling",
+    "allens",
+    "all win",
+  ],
+};
+
+/**
+ * Find the best matching poker action from a spoken phrase
+ * @param text The recognized speech text
+ * @returns The matched action or null if no match found
+ */
+export function findBestPokerActionMatch(text: string): string | null {
+  // Convert to lowercase and remove punctuation
+  const normalized = text
+    .toLowerCase()
+    .replace(/[.,!?;:]/g, "")
+    .trim();
+  const words = normalized.split(/\s+/);
+
+  // Check each word against our action variations
+  for (const word of words) {
+    for (const [action, variations] of Object.entries(POKER_ACTIONS)) {
+      if (variations.includes(word)) {
+        return action;
+      }
+    }
+  }
+
+  // If no exact match in variations, try Levenshtein distance for close matches
+  for (const word of words) {
+    let bestMatch: string | null = null;
+    let bestScore = Infinity;
+
+    for (const [action, variations] of Object.entries(POKER_ACTIONS)) {
+      for (const variation of variations) {
+        const distance = levenshteinDistance(word, variation);
+        // Accept matches with distance less than 3 (configurable threshold)
+        if (distance < 3 && distance < bestScore) {
+          bestScore = distance;
+          bestMatch = action;
+        }
+      }
+    }
+
+    if (bestMatch) {
+      return bestMatch;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Extract a number from a text string
+ * @param text The text to extract numbers from
+ * @returns The first number found or null
+ */
+export function extractNumber(text: string): number | null {
+  const matches = text.match(/\d+/);
+  if (matches && matches.length > 0) {
+    return parseInt(matches[0], 10);
+  }
+  return null;
+}
+
+/**
+ * Calculate Levenshtein distance between two strings
+ */
+function levenshteinDistance(a: string, b: string): number {
+  const matrix: number[][] = [];
+
+  // Initialize matrix
+  for (let i = 0; i <= b.length; i++) {
+    matrix[i] = [i];
+  }
+  for (let j = 0; j <= a.length; j++) {
+    matrix[0][j] = j;
+  }
+
+  // Fill matrix
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1, // substitution
+          matrix[i][j - 1] + 1, // insertion
+          matrix[i - 1][j] + 1, // deletion
+        );
+      }
+    }
+  }
+
+  return matrix[b.length][a.length];
+}
+
+```
+
+
+### frontend/lib/game-context.tsx
+
+```tsx
+// frontend/lib/game-context.tsx
+"use client";
+
+import React, { createContext, useState, useContext, ReactNode } from "react";
+import { GameRoomType, UserRole } from "./types";
+
+type GameContextType = {
+  gameRoom: GameRoomType | null;
+  setGameRoom: React.Dispatch<React.SetStateAction<GameRoomType | null>>;
+  userRole: {
+    role: UserRole | null;
+    playerId?: string;
+  } | null;
+  setUserRole: React.Dispatch<
+    React.SetStateAction<{
+      role: UserRole | null;
+      playerId?: string;
+    } | null>
+  >;
+};
+
+const GameContext = createContext<GameContextType | undefined>(undefined);
+
+export const GameProvider = ({ children }: { children: ReactNode }) => {
+  const [gameRoom, setGameRoom] = useState<GameRoomType | null>(null);
+  const [userRole, setUserRole] = useState<{
+    role: UserRole | null;
+    playerId?: string;
+  } | null>(null);
+
+  return (
+    <GameContext.Provider
+      value={{
+        gameRoom,
+        setGameRoom,
+        userRole,
+        setUserRole,
+      }}
+    >
+      {children}
+    </GameContext.Provider>
+  );
+};
+
+export const useGameContext = () => {
+  const context = useContext(GameContext);
+  if (context === undefined) {
+    throw new Error("useGameContext must be used within a GameProvider");
+  }
+  return context;
+};
+
+```
+
+
+### frontend/lib/name-generator.ts
+
+```ts
+export function generateRandomName(): string {
+  const nouns = [
+    "Panda",
+    "Tiger",
+    "Eagle",
+    "Shark",
+    "Lion",
+    "Falcon",
+    "Wolf",
+    "Hawk",
+    "Bear",
+    "Owl",
+    "Fox",
+    "Raven",
+    "Cobra",
+    "Jaguar",
+    "Dragon",
+    "Phoenix",
+    "Turtle",
+    "Dolphin",
+    "Bison",
+    "Coyote",
+    "Elephant",
+    "Rhino",
+  ];
+
+  const noun = nouns[Math.floor(Math.random() * nouns.length)];
+  const number = Math.floor(Math.random() * 100);
+
+  return `${noun}${number}`;
+}
+
+```
+
+
+### frontend/lib/openai-service.ts
+
+```ts
+// frontend/lib/openai-service.ts
+// This service would be used in production to make actual calls to the OpenAI API
+import { ActionRecommendation, HandStrength } from "./ai-advisor-service";
+
+// Define OpenAI API response types
+export type OpenAIMessage = {
+  role: "system" | "user" | "assistant";
+  content: string;
+};
+
+export type OpenAIResponse = {
+  id: string;
+  object: string;
+  created: number;
+  model: string;
+  choices: {
+    message: {
+      role: string;
+      content: string;
+    };
+    index: number;
+    finish_reason: string;
+  }[];
+};
+
+export async function callOpenAI(
+  prompt: string,
+  model: string = "gpt-4o-mini", // Changed to gpt-4o-mini for faster responses
+): Promise<string> {
+  // In production, this would be your actual API key
+  const apiKey = process.env.NEXT_PUBLIC_OPENAI_API_KEY;
+
+  if (!apiKey) {
+    console.warn("OpenAI API key not found. Using mock response instead.");
+    throw Error("OpenAI API key not found. Using mock response instead.");
+  }
+
+  try {
+    console.log(
+      "Making API call to OpenAI with prompt:",
+      prompt.substring(0, 100) + "...",
+    );
+
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: model,
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are a poker AI trained in Game Theory Optimal (GTO) strategy. Analyze the current game state and recommend the best action. Be extremely concise - provide explanations in a single sentence.",
+          },
+          {
+            role: "user",
+            content: prompt,
+          },
+        ],
+        temperature: 0.1, // Lower temperature for more consistent GTO recommendations
+        max_tokens: 150, // Reduced token count for shorter responses
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(
+        `OpenAI API request failed: ${response.status} - ${errorText}`,
+      );
+    }
+
+    const data = await response.json();
+    return data.choices[0].message.content;
+  } catch (error) {
+    console.error("Error calling OpenAI API:", error);
+    throw Error("Error calling openai api.");
+  }
+}
+
+export function parseGTOAdvice(
+  response: string,
+  availableActions: string[] = ["Check", "Call", "Bet", "Raise", "Fold"],
+): ActionRecommendation {
+  try {
+    // Extract action
+    const actionMatch = response.match(/\*\*Action:\*\*\s*([A-Za-z]+)/i);
+    let action = actionMatch ? actionMatch[1] : "Check";
+
+    // Make sure action is from available actions
+    if (!availableActions.includes(action)) {
+      // Fall back to a default action that is available
+      action = availableActions.includes("Check")
+        ? "Check"
+        : availableActions.includes("Fold")
+          ? "Fold"
+          : availableActions[0];
+    }
+
+    // Safety check for premium hands - override fold recommendations for premium pairs
+    const isPremiumHand =
+      response.toLowerCase().includes("premium") ||
+      /pocket (a|k|q|j|10|t)s/i.test(response) ||
+      /pair of (a|k|q|j|10|t)/i.test(response) ||
+      // Look for specific mentions of premium pairs in the text
+      /(pocket aces|pocket kings|pocket queens|pocket jacks|pocket tens)/i.test(
+        response,
+      );
+
+    // Make sure we're not folding premium hands preflop incorrectly
+    if (
+      action.toLowerCase() === "fold" &&
+      isPremiumHand &&
+      /preflop/i.test(response)
+    ) {
+      if (availableActions.includes("Call")) {
+        action = "Call";
+        console.log("Safety override: Changed fold to call for premium hand");
+      } else if (availableActions.includes("Check")) {
+        action = "Check";
+        console.log("Safety override: Changed fold to check for premium hand");
+      }
+    }
+
+    // Extract bet size
+    const betSizeMatch = response.match(
+      /\*\*Recommended Bet Size:\*\*\s*(\d+)/i,
+    );
+    const betSize = betSizeMatch ? parseInt(betSizeMatch[1], 10) : undefined;
+
+    // Extract explanation
+    const explanationMatch = response.match(
+      /\*\*Short Explanation:\*\*\s*([^\n]*)/i,
+    );
+    const explanation = explanationMatch
+      ? explanationMatch[1]
+      : "No explanation provided.";
+
+    // Extract probabilities
+    const probabilitiesText = response.match(
+      /\*\*Probability Distribution:\*\*\s*([^\n]*)/i,
+    );
+    const probabilities: {
+      check: number;
+      call: number;
+      bet: number;
+      raise: number;
+      fold: number;
+    } = {
+      check: 0,
+      call: 0,
+      bet: 0,
+      raise: 0,
+      fold: 0,
+    };
+
+    if (probabilitiesText) {
+      const probabilityParts = probabilitiesText[1].split(/,\s*/);
+      for (const part of probabilityParts) {
+        const [actionName, percentage] = part.split(/\s*:\s*/);
+        if (actionName && percentage) {
+          const cleanAction = actionName.toLowerCase().trim();
+          let value = 0;
+
+          // Handle percentage strings in various formats
+          if (percentage.endsWith("%")) {
+            value = parseFloat(percentage.replace("%", "")) / 100;
+          } else {
+            value = parseFloat(percentage);
+            // If it's already a decimal less than 1, keep it as is
+            if (value > 1) {
+              value = value / 100;
+            }
+          }
+
+          if (!isNaN(value) && probabilities.hasOwnProperty(cleanAction)) {
+            probabilities[cleanAction as keyof typeof probabilities] = value;
+          }
+        }
+      }
+    }
+
+    // Make sure probabilities only include available actions and normalize to 100%
+    const availableActionsLower = availableActions.map((a) => a.toLowerCase());
+    // First remove unavailable actions
+    for (const key in probabilities) {
+      if (!availableActionsLower.includes(key)) {
+        probabilities[key as keyof typeof probabilities] = 0;
+      }
+    }
+
+    // Normalize probabilities to sum to 1.0 (100%)
+    const sum = Object.values(probabilities).reduce((acc, val) => acc + val, 0);
+    if (sum > 0 && sum !== 1) {
+      // If we have some probabilities but they don't sum to 1, normalize them
+      for (const key in probabilities) {
+        probabilities[key as keyof typeof probabilities] =
+          probabilities[key as keyof typeof probabilities] / sum;
+      }
+    } else if (sum === 0) {
+      // If no probabilities, set a default distribution based on the recommended action
+      if (action.toLowerCase() in probabilities) {
+        // Primary action gets 70%
+        probabilities[action.toLowerCase() as keyof typeof probabilities] = 0.7;
+
+        // Distribute remaining 30% among other available actions
+        const otherActions = availableActionsLower.filter(
+          (act) => act !== action.toLowerCase(),
+        );
+        const otherActionWeight =
+          otherActions.length > 0 ? 0.3 / otherActions.length : 0;
+
+        otherActions.forEach((act) => {
+          probabilities[act as keyof typeof probabilities] = otherActionWeight;
+        });
+      }
+    }
+
+    // Extract hand strength
+    const typedHandStrength = extractHandStrength(response);
+    const equity = extractEquity(response);
+
+    // Return comprehensive recommendation
+    return {
+      action: action as "Check" | "Call" | "Bet" | "Raise" | "Fold",
+      betSize,
+      explanation,
+      probabilities,
+      confidence: 0.8, // Default confidence
+      handStrength: typedHandStrength,
+      equity,
+    };
+  } catch (error) {
+    console.error("Error parsing GTO advice:", error);
+    // Default fallback with balanced probabilities
+    const fallbackProbs = {
+      check: 0.1,
+      call: 0.1,
+      bet: 0.1,
+      raise: 0.1,
+      fold: 0.6,
+    };
+    return {
+      action: "Fold" as const,
+      explanation: "Error processing AI recommendation",
+      confidence: 0.5,
+      probabilities: fallbackProbs,
+    };
+  }
+}
+
+// Helper function to extract hand strength
+function extractHandStrength(text: string): HandStrength | undefined {
+  const handStrengthMatch = text.match(/\*\*Hand Strength:\*\*\s*([^\n]*)/i);
+  if (!handStrengthMatch) return undefined;
+
+  const handStrength = handStrengthMatch[1];
+  // Map hand strength to valid type
+  if (/high card/i.test(handStrength)) return "High Card";
+  if (/one pair|pair of/i.test(handStrength)) return "One Pair";
+  if (/two pair/i.test(handStrength)) return "Two Pair";
+  if (/three of a kind|trips/i.test(handStrength)) return "Three of a Kind";
+  if (/straight/i.test(handStrength) && /flush/i.test(handStrength)) {
+    if (/royal/i.test(handStrength)) return "Royal Flush";
+    return "Straight Flush";
+  }
+  if (/straight/i.test(handStrength)) return "Straight";
+  if (/flush/i.test(handStrength)) return "Flush";
+  if (/full house/i.test(handStrength)) return "Full House";
+  if (/four of a kind|quads/i.test(handStrength)) return "Four of a Kind";
+
+  return "High Card"; // Default
+}
+
+function extractEquity(text: string): number | undefined {
+  const equityMatch = text.match(/\*\*Equity:\*\*\s*(\d+(?:\.\d+)?)/i);
+  if (!equityMatch) return undefined;
+
+  // Convert percentage to decimal
+  const equityValue = parseFloat(equityMatch[1]);
+  if (!isNaN(equityValue)) {
+    // Check if it's already in decimal form (less than 1)
+    if (equityValue < 1) return equityValue;
+    // Otherwise, assume it's a percentage and convert
+    return equityValue / 100;
+  }
+
+  return undefined;
+}
+
+```
+
+
+### frontend/lib/types.ts
+
+```ts
+// generate types to use for frontend
+export type CardType = {
+  suit: string;
+  rank: string;
+};
+
+export type PlayerHandType = {
+  cards: CardType[];
+};
+
+export type PlayerType = {
+  id: string;
+  name: string;
+  online: boolean;
+  visuallyImpaired: boolean;
+  chips: number;
+  folded: boolean;
+  active: boolean;
+  hand?: PlayerHandType;
+  handRanking?: string;
+  lastAction?: string;
+  lastActionAmount?: number;
+};
+
+export type GameActionType = {
+  playerId?: string;
+  playerName?: string;
+  type: string;
+  amount?: number;
+  timestamp?: string;
+  card?: CardType;
+  message?: string;
+};
+
+export type GameRoomType = {
+  id: string;
+  players: PlayerType[];
+  gameState:
+    | "WAITING"
+    | "STARTED"
+    | "PREFLOP"
+    | "FLOP"
+    | "TURN"
+    | "RIVER"
+    | "SHOWDOWN"
+    | "ENDED";
+  waitingForCards: boolean;
+  communityCards: CardType[];
+  currentPlayerIndex: number;
+  pot: number;
+  actions?: GameActionType[];
+  bets?: Record<string, number>;
+  currentBet?: number;
+  smallBlindPosition: number;
+  dealerId?: string;
+  winnerIds?: string[];
+};
+
+export type UserRole = "PLAYER" | "DEALER" | "SCANNER";
+
+```
+
+
+### frontend/lib/utils.ts
+
+```ts
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+
+export function getPokerPosition(
+  playerIndex: number,
+  playerCount: number,
+  smallBlindPosition: number,
+): string {
+  if (playerCount < 3) return "";
+
+  // Calculate button position (one position before SB)
+  const buttonPos = (smallBlindPosition - 1 + playerCount) % playerCount;
+
+  if (playerIndex === buttonPos) return "BTN";
+  if (playerIndex === smallBlindPosition) return "SB";
+  if (playerIndex === (smallBlindPosition + 1) % playerCount) return "BB";
+
+  // Calculate position relative to button
+  const positionFromButton =
+    (playerIndex - buttonPos + playerCount) % playerCount;
+
+  switch (positionFromButton) {
+    case 0:
+      return "BTN";
+    case 1:
+      return "SB";
+    case 2:
+      return "BB";
+    case 3:
+      return "UTG";
+    case playerCount - 1:
+      return "CO"; // Cutoff
+    case playerCount - 2:
+      return playerCount > 4 ? "HJ" : "UTG"; // Hijack
+    default:
+      return "MP"; // Middle position
+  }
+}
+
+```
+
+
+### frontend/lib/websocket-service.ts
+
+```ts
+// frontend/lib/websocket-service.ts
+import { Client } from "@stomp/stompjs";
+import { GameActionType, GameRoomType } from "./types";
+
+let stompClient: Client | null = null;
+
+export const connectWebSocket = (
+  gameId: string,
+  onGameUpdate: (gameRoom: GameRoomType) => void,
+) => {
+  if (stompClient) {
+    disconnectWebSocket();
+  }
+
+  // Get the backend URL from environment variables with fallback
+  const backendUrl =
+    process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080";
+
+  // Determine if we need to use wss:// or ws:// based on the current protocol
+  const wsProtocol = window.location.protocol === "https:" ? "wss://" : "ws://";
+  const baseUrl = backendUrl.replace(/^https?:\/\//, "");
+
+  stompClient = new Client({
+    brokerURL: `${wsProtocol}${baseUrl}/ws-poker`,
+    connectHeaders: {},
+    reconnectDelay: 5000,
+    heartbeatIncoming: 4000,
+    heartbeatOutgoing: 4000,
+  });
+
+  stompClient.onConnect = () => {
+    console.log("Connected to WebSocket");
+
+    // Ensure stompClient is not null
+    if (!stompClient) return;
+
+    // Subscribe to game updates
+    stompClient.subscribe(`/topic/game/${gameId}`, (message) => {
+      try {
+        const gameRoom = JSON.parse(message.body) as GameRoomType;
+        onGameUpdate(gameRoom);
+        console.log("Game Updated");
+        console.log(gameRoom);
+      } catch (err) {
+        console.error("Error parsing game update", err);
+      }
+    });
+
+    // Join the game
+    stompClient.publish({
+      destination: `/app/game/${gameId}/join`,
+      body: JSON.stringify({}),
+    });
+  };
+
+  stompClient.onStompError = (frame) => {
+    console.error("STOMP error", frame);
+  };
+
+  stompClient.activate();
+};
+
+export const disconnectWebSocket = () => {
+  if (stompClient) {
+    if (stompClient.connected) {
+      stompClient.deactivate();
+    }
+    stompClient = null;
+  }
+};
+
+export const sendGameAction = (gameId: string, action: GameActionType) => {
+  if (!stompClient || !stompClient.connected) {
+    console.error("WebSocket not connected");
+    return;
+  }
+
+  stompClient.publish({
+    destination: `/app/game/${gameId}/action`,
+    body: JSON.stringify(action),
+  });
+};
+
+```
