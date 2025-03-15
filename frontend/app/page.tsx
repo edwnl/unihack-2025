@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
+import Link from "next/link";
 import { DotLottiePlayer } from "@dotlottie/react-player";
 import "@dotlottie/react-player/dist/index.css";
 
@@ -41,6 +42,7 @@ export default function Home() {
 
       {/* Main Content */}
       <div className="flex flex-col items-center justify-center w-full mt-8 sm:mt-12 md:mt-0">
+      <div className="flex flex-col items-center justify-center w-full mt-8 sm:mt-12 md:mt-0">
         {/* Text Section */}
         <div className="max-w-4xl text-center mb-10 md:mb-14">
           <motion.h1
@@ -49,6 +51,7 @@ export default function Home() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2, duration: 0.8 }}
           >
+            A new card game <span className="text-yellow-300">experience.</span>
             A new card game <span className="text-yellow-300">experience.</span>
           </motion.h1>
 
