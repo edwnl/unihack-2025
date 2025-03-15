@@ -77,9 +77,9 @@ export default function GamePage() {
   return (
     <main className="flex min-h-screen flex-col items-center p-4 md:p-8">
       {userRole?.role === "PLAYER" ? (
-          <PlayerView gameId={gameId} />
+        <PlayerView gameId={gameId} />
       ) : (
-          <DealerView gameId={gameId} />
+        <DealerView gameId={gameId} />
       )}
     </main>
   );

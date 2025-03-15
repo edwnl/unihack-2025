@@ -24,7 +24,7 @@ export default function PlayerJoinPage() {
 
   // Backend URL with fallback
   const backendUrl =
-      process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080";
+    process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080";
 
   const handlePlayerJoin = async () => {
     if (!name || !gameCode) {
@@ -71,89 +71,89 @@ export default function PlayerJoinPage() {
   };
 
   return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-4 md:p-8">
-        <div className="w-full max-w-md">
-          <Card className="w-full">
-            <CardHeader>
-              <CardTitle className="text-center">Join Game as Player</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-col space-y-4">
-                <div className="space-y-2">
-                  <label htmlFor="name" className="block text-sm font-medium">
-                    Your Name
-                  </label>
-                  <input
-                      id="name"
-                      type="text"
-                      value={name}
-                      maxLength={16} // <-- Enforces a 16-character limit
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder="Enter your name"
-                      className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label htmlFor="gameCode" className="block text-sm font-medium">
-                    Game Code
-                  </label>
-                  <input
-                      id="gameCode"
-                      type="text"
-                      value={gameCode}
-                      onChange={(e) => setGameCode(e.target.value.toUpperCase())}
-                      placeholder="Enter game code"
-                      className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <label htmlFor="online" className="block text-sm font-medium">
-                    Joining Online
-                  </label>
-                  <Switch
-                      id="online"
-                      checked={online}
-                      onCheckedChange={setOnline}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <label
-                      htmlFor="visuallyImpaired"
-                      className="block text-sm font-medium"
-                  >
-                    Visually Impaired
-                  </label>
-                  <Switch
-                      id="visuallyImpaired"
-                      checked={visuallyImpaired}
-                      onCheckedChange={setVisuallyImpaired}
-                  />
-                </div>
-
-                <Button
-                    onClick={handlePlayerJoin}
-                    disabled={loading}
-                    className="w-full"
-                >
-                  {loading ? "Joining..." : "Join Game"}
-                </Button>
+    <main className="flex min-h-screen flex-col items-center justify-center p-4 md:p-8">
+      <div className="w-full max-w-md">
+        <Card className="w-full">
+          <CardHeader>
+            <CardTitle className="text-center">Join Game as Player</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col space-y-4">
+              <div className="space-y-2">
+                <label htmlFor="name" className="block text-sm font-medium">
+                  Your Name
+                </label>
+                <input
+                  id="name"
+                  type="text"
+                  value={name}
+                  maxLength={16} // <-- Enforces a 16-character limit
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Enter your name"
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+                />
               </div>
 
-              {error && <p className="text-red-500 mt-4 text-center">{error}</p>}
+              <div className="space-y-2">
+                <label htmlFor="gameCode" className="block text-sm font-medium">
+                  Game Code
+                </label>
+                <input
+                  id="gameCode"
+                  type="text"
+                  value={gameCode}
+                  onChange={(e) => setGameCode(e.target.value.toUpperCase())}
+                  placeholder="Enter game code"
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <label htmlFor="online" className="block text-sm font-medium">
+                  Joining Online
+                </label>
+                <Switch
+                  id="online"
+                  checked={online}
+                  onCheckedChange={setOnline}
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <label
+                  htmlFor="visuallyImpaired"
+                  className="block text-sm font-medium"
+                >
+                  Visually Impaired
+                </label>
+                <Switch
+                  id="visuallyImpaired"
+                  checked={visuallyImpaired}
+                  onCheckedChange={setVisuallyImpaired}
+                />
+              </div>
 
               <Button
-                  variant="ghost"
-                  className="w-full mt-4"
-                  onClick={() => router.push("/start")}
+                onClick={handlePlayerJoin}
+                disabled={loading}
+                className="w-full"
               >
-                Back
+                {loading ? "Joining..." : "Join Game"}
               </Button>
-            </CardContent>
-          </Card>
-        </div>
-      </main>
+            </div>
+
+            {error && <p className="text-red-500 mt-4 text-center">{error}</p>}
+
+            <Button
+              variant="ghost"
+              className="w-full mt-4"
+              onClick={() => router.push("/start")}
+            >
+              Back
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    </main>
   );
 }

@@ -14,7 +14,7 @@ export default function DealerCreatePage() {
 
   // Backend URL with fallback
   const backendUrl =
-      process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080";
+    process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080";
 
   const handleDealerCreate = async () => {
     setLoading(true);
@@ -48,38 +48,38 @@ export default function DealerCreatePage() {
   };
 
   return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-4 md:p-8">
-        <div className="w-full max-w-md">
-          <Card className="w-full">
-            <CardHeader>
-              <CardTitle className="text-center">Create Game as Dealer</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-col space-y-4">
-                <p className="text-center">
-                  Create a new game room as the dealer.
-                </p>
-                <Button
-                    onClick={handleDealerCreate}
-                    disabled={loading}
-                    className="w-full"
-                >
-                  {loading ? "Creating..." : "Create Game Room"}
-                </Button>
-              </div>
-
-              {error && <p className="text-red-500 mt-4 text-center">{error}</p>}
-
+    <main className="flex min-h-screen flex-col items-center justify-center p-4 md:p-8">
+      <div className="w-full max-w-md">
+        <Card className="w-full">
+          <CardHeader>
+            <CardTitle className="text-center">Create Game as Dealer</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col space-y-4">
+              <p className="text-center">
+                Create a new game room as the dealer.
+              </p>
               <Button
-                  variant="ghost"
-                  className="w-full mt-4"
-                  onClick={() => router.push("/start")}
+                onClick={handleDealerCreate}
+                disabled={loading}
+                className="w-full"
               >
-                Back
+                {loading ? "Creating..." : "Create Game Room"}
               </Button>
-            </CardContent>
-          </Card>
-        </div>
-      </main>
+            </div>
+
+            {error && <p className="text-red-500 mt-4 text-center">{error}</p>}
+
+            <Button
+              variant="ghost"
+              className="w-full mt-4"
+              onClick={() => router.push("/start")}
+            >
+              Back
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    </main>
   );
 }

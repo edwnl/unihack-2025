@@ -22,7 +22,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className={`${poppins.className} antialiased`}>
-      <DebugNavigation/>
+        <DebugNavigation />
         <GameProvider>{children}</GameProvider>
       </body>
     </html>
