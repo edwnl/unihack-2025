@@ -142,7 +142,8 @@ export default function WaitingRoomPage() {
                         className="flex items-center justify-between py-2"
                       >
                         <span>{player.name}</span>
-                        <div className="flex gap-2">
+                        {/* Added items-center class below for proper vertical alignment */}
+                        <div className="flex items-center gap-2">
                           {player.online && (
                             <span className="text-xs bg-primary/20 px-2 py-1 rounded">
                               Online
