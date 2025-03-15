@@ -4,6 +4,7 @@ package com.edwn.unihack.service;
 import com.edwn.unihack.model.GameAction;
 import com.edwn.unihack.model.GameRoom;
 import com.edwn.unihack.model.Player;
+
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
@@ -32,6 +33,7 @@ public class GameRoomService {
         this.cardHandlingService = cardHandlingService;
         this.bettingService = bettingService;
         this.gameLogService = gameLogService;
+
     }
 
     public GameRoom createRoom() {
@@ -100,6 +102,7 @@ public class GameRoomService {
     }
 
     public void startNewHand(GameRoom room) {
+
         gameStateService.startNewHand(room);
         notifyRoomUpdate(room.getId());
     }
@@ -117,6 +120,7 @@ public class GameRoomService {
             // Add a LOG action indicating action not allowed
             gameLogService.addLogAction(room, "ERROR: Player action '" + action.getType() +
                     "' attempted while waiting for cards. Action ignored.");
+
 
             // Notify all clients about the update
             notifyRoomUpdate(gameCode);
@@ -157,6 +161,8 @@ public class GameRoomService {
         notifyRoomUpdate(gameCode);
     }
 
+
+    
     private void notifyRoomUpdate(String gameCode) {
         GameRoom room = gameRooms.get(gameCode);
         if (room != null) {

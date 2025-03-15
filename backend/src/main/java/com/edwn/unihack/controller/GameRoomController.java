@@ -1,4 +1,7 @@
+
 // backend/src/main/java/com/edwn/unihack/controller/GameRoomController.java (updated)
+=======
+
 package com.edwn.unihack.controller;
 
 import com.edwn.unihack.dto.CreatePlayerRequest;
@@ -85,11 +88,11 @@ public class GameRoomController {
                         .currentBet(room.getCurrentBet())
                         .smallBlindPosition(room.getSmallBlindPosition())
                         .dealerId(room.getDealerId())
+
                         .winnerIds(room.getWinnerIds())
                         .build()))
-                .orElse(ResponseEntity.notFound().build());
+                        .orElse(ResponseEntity.notFound().build());
     }
-
     @PostMapping("/{gameCode}/start")
     public ResponseEntity<?> startGame(@PathVariable String gameCode) {
         GameRoom room = gameRoomService.findRoomByCode(gameCode).orElse(null);

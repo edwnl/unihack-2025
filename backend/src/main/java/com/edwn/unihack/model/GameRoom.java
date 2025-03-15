@@ -1,4 +1,6 @@
-// backend/src/main/java/com/edwn/unihack/model/GameRoom.java (updated)
+
+// backend/src/main/java/com/edwn/unihack/model/GameRoom.java
+
 package com.edwn.unihack.model;
 
 import lombok.AllArgsConstructor;
@@ -31,6 +33,7 @@ public class GameRoom {
     @Builder.Default
     private final List<String> winnerIds = new ArrayList<>();
 
+
     public static GameRoom createNew() {
         return GameRoom.builder()
                 .id(generateGameCode())
@@ -49,6 +52,7 @@ public class GameRoom {
         return UUID.randomUUID().toString().substring(0, 6).toUpperCase();
     }
 
+
     public Player getCurrentPlayer() {
         if (players.isEmpty() || currentPlayerIndex < 0 || currentPlayerIndex >= players.size()) {
             return null;
@@ -64,6 +68,8 @@ public class GameRoom {
             currentPlayerIndex = (currentPlayerIndex + 1) % players.size();
         } while (players.get(currentPlayerIndex).isFolded() || !players.get(currentPlayerIndex).isActive());
     }
+
+
 
     public enum GameState {
         WAITING, STARTED, PREFLOP, FLOP, TURN, RIVER, SHOWDOWN, ENDED
