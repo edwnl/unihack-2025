@@ -11,9 +11,11 @@ import java.util.HashMap;
 public class CardHandlingService {
 
     private final GameLogService gameLogService;
+    private final GameStateService gameStateService;
 
-    public CardHandlingService(GameLogService gameLogService) {
+    public CardHandlingService(GameLogService gameLogService, GameStateService gameStateService) {
         this.gameLogService = gameLogService;
+        this.gameStateService = gameStateService;
     }
 
     public void handleCardScan(GameRoom room, Card card) {
@@ -93,61 +95,84 @@ public class CardHandlingService {
 
         // If we have 3 community cards, start flop betting
         if (room.getCommunityCards().size() == 3) {
-            // No longer waiting for cards
+            // Check if all active players are all-in
+            boolean allPlayersAllIn = room.isAllPlayersAllInOrFolded();
+
+            if (allPlayersAllIn) {
+                gameLogService.addLogAction(room, "All players are all-in. Proceeding directly to turn.");
+                // Keep waiting for cards, but advance the game state
+                room.setGameState(GameRoom.GameState.TURN);
+            } else {
+                // No longer waiting for cards
+                room.setWaitingForCards(false);
+                updatePlayerHandRankings(room);
+
+                // Reset bets for the new round
+                room.setBets(new HashMap<>());
+                room.setCurrentBet(0);
+
+                // Set first active player after the small blind
+                int startPos = room.getSmallBlindPosition();
+                for (int i = 0; i < room.getPlayers().size(); i++) {
+                    int pos = (startPos + i) % room.getPlayers().size();
+                    if (!room.getPlayers().get(pos).isFolded() && room.getPlayers().get(pos).isActive()) {
+                        room.setCurrentPlayerIndex(pos);
+                        break;
+                    }
+                }
+
+                gameLogService.addLogAction(room, "Flop complete. Flop betting begins.");
+            }
+        }
+    }
+
+    // Modify the handleTurnCardScan method
+    private void handleTurnCardScan(GameRoom room, Card card) {
+        // Add to community cards
+        room.getCommunityCards().add(card);
+        updatePlayerHandRankings(room);
+
+        // Check if all active players are all-in
+        boolean allPlayersAllIn = room.isAllPlayersAllInOrFolded();
+
+        if (allPlayersAllIn) {
+            gameLogService.addLogAction(room, "Turn card: " + card.getRank() + " of " + card.getSuit() + ". All players are all-in. Proceeding directly to river.");
+            // Keep waiting for cards, but advance the game state
+            room.setGameState(GameRoom.GameState.RIVER);
+        } else {
+            // No longer waiting for cards after the turn card is dealt
             room.setWaitingForCards(false);
-            updatePlayerHandRankings(room);
+
+            // Log the turn card
+            gameLogService.addLogAction(room, "Turn card: " + card.getRank() + " of " + card.getSuit());
 
             // Reset bets for the new round
             room.setBets(new HashMap<>());
             room.setCurrentBet(0);
 
-            // Set first active player after the small blind
-            int startPos = room.getSmallBlindPosition();
+            // Set first active player to small blind
+            int turnStartPos = room.getSmallBlindPosition();
             for (int i = 0; i < room.getPlayers().size(); i++) {
-                int pos = (startPos + i) % room.getPlayers().size();
+                int pos = (turnStartPos + i) % room.getPlayers().size();
                 if (!room.getPlayers().get(pos).isFolded() && room.getPlayers().get(pos).isActive()) {
                     room.setCurrentPlayerIndex(pos);
                     break;
                 }
             }
 
-            gameLogService.addLogAction(room, "Flop complete. Flop betting begins.");
+            // Log betting begins
+            gameLogService.addLogAction(room, "Turn betting begins.");
         }
     }
 
-    private void handleTurnCardScan(GameRoom room, Card card) {
-        // Add to community cards
-        room.getCommunityCards().add(card);
-        updatePlayerHandRankings(room);
-
-        // No longer waiting for cards after the turn card is dealt
-        room.setWaitingForCards(false);
-
-        // Log the turn card
-        gameLogService.addLogAction(room, "Turn card: " + card.getRank() + " of " + card.getSuit());
-
-        // Reset bets for the new round
-        room.setBets(new HashMap<>());
-        room.setCurrentBet(0);
-
-        // Set first active player to small blind
-        int turnStartPos = room.getSmallBlindPosition();
-        for (int i = 0; i < room.getPlayers().size(); i++) {
-            int pos = (turnStartPos + i) % room.getPlayers().size();
-            if (!room.getPlayers().get(pos).isFolded() && room.getPlayers().get(pos).isActive()) {
-                room.setCurrentPlayerIndex(pos);
-                break;
-            }
-        }
-
-        // Log betting begins
-        gameLogService.addLogAction(room, "Turn betting begins.");
-    }
-
+    // Modify the handleRiverCardScan method
     private void handleRiverCardScan(GameRoom room, Card card) {
         // Add to community cards
         room.getCommunityCards().add(card);
         updatePlayerHandRankings(room);
+
+        // Check if all active players are all-in - always go to showdown after river
+        boolean allPlayersAllIn = room.isAllPlayersAllInOrFolded();
 
         // No longer waiting for cards after the river card is dealt
         room.setWaitingForCards(false);
@@ -155,22 +180,30 @@ public class CardHandlingService {
         // Log the river card
         gameLogService.addLogAction(room, "River card: " + card.getRank() + " of " + card.getSuit());
 
-        // Reset bets for the new round
-        room.setBets(new HashMap<>());
-        room.setCurrentBet(0);
+        if (allPlayersAllIn) {
+            gameLogService.addLogAction(room, "All players are all-in. Proceeding directly to showdown.");
+            // Move directly to showdown
+            room.setGameState(GameRoom.GameState.SHOWDOWN);
+            // Determine the winner
+            gameStateService.handleShowdown(room);
+        } else {
+            // Reset bets for the new round
+            room.setBets(new HashMap<>());
+            room.setCurrentBet(0);
 
-        // Set first active player to small blind
-        int riverStartPos = room.getSmallBlindPosition();
-        for (int i = 0; i < room.getPlayers().size(); i++) {
-            int pos = (riverStartPos + i) % room.getPlayers().size();
-            if (!room.getPlayers().get(pos).isFolded() && room.getPlayers().get(pos).isActive()) {
-                room.setCurrentPlayerIndex(pos);
-                break;
+            // Set first active player to small blind
+            int riverStartPos = room.getSmallBlindPosition();
+            for (int i = 0; i < room.getPlayers().size(); i++) {
+                int pos = (riverStartPos + i) % room.getPlayers().size();
+                if (!room.getPlayers().get(pos).isFolded() && room.getPlayers().get(pos).isActive()) {
+                    room.setCurrentPlayerIndex(pos);
+                    break;
+                }
             }
-        }
 
-        // Log betting begins
-        gameLogService.addLogAction(room, "River betting begins.");
+            // Log betting begins
+            gameLogService.addLogAction(room, "River betting begins.");
+        }
     }
 
     private void assignCardToNextPlayer(GameRoom room, Card card) {

@@ -27,6 +27,10 @@ public class GameStateService {
         // Reset player states
         for (Player player : room.getPlayers()) {
             player.newHand();
+            if (player.getChips() <= 0) {
+                player.setChips(1000);
+                gameLogService.addLogAction(room, player.getName() + " ran out of chips and has been topped up to 1000 chips.");
+            }
         }
 
         // Move the small blind position
@@ -205,6 +209,14 @@ public class GameStateService {
 
         // Reset the pot
         room.setPot(0);
+
+        // Check if any player has 0 chips and top them up to 1000
+        for (Player player : room.getPlayers()) {
+            if (player.getChips() <= 0) {
+                player.setChips(1000);
+                gameLogService.addLogAction(room, player.getName() + " ran out of chips and has been topped up to 1000 chips.");
+            }
+        }
     }
 
     public void checkGameEnd(GameRoom room) {
@@ -233,6 +245,14 @@ public class GameStateService {
                 room.setWinnerIds(winnerIds);
 
                 gameLogService.addLogAction(room, winner.getName() + " wins " + room.getPot() + " chips as the last player standing.");
+            }
+
+            // Check if any player has 0 chips and top them up to 1000
+            for (Player player : room.getPlayers()) {
+                if (player.getChips() <= 0) {
+                    player.setChips(1000);
+                    gameLogService.addLogAction(room, player.getName() + " ran out of chips and has been topped up to 1000 chips.");
+                }
             }
         }
     }
