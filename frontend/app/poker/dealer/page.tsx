@@ -36,7 +36,7 @@ export default function DealerCreatePage() {
       // Set user role with dealer ID
       setUserRole({
         role: "DEALER",
-        playerId: data.dealerId,
+        gameId: data.id,
       });
 
       router.push(`waiting/${data.id}`);
