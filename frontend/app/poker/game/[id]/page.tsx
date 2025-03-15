@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useGameContext } from "@/lib/game-context";
 import { connectWebSocket, disconnectWebSocket } from "@/lib/websocket-service";
 import DealerView from "@/components/dealer-view";
+import PlayerView from "@/components/player-view";
 
 export default function GamePage() {
   const params = useParams();
@@ -75,7 +76,11 @@ export default function GamePage() {
 
   return (
     <main className="flex min-h-screen flex-col items-center p-4 md:p-8">
-      <DealerView gameId={gameId} />
+      {userRole?.role === "PLAYER" ? (
+          <PlayerView gameId={gameId} />
+      ) : (
+          <DealerView gameId={gameId} />
+      )}
     </main>
   );
 }

@@ -23,7 +23,7 @@ export default function GameSelectionPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl">
         {/* poker card */}
-        <Link href="/pick-game/start" className="block w-full h-full">
+        <Link href="/poker" className="block w-full h-full">
           <div className="w-full aspect-[3/4] rounded-xl overflow-hidden shadow-lg bg-blue-900 flex flex-col items-center justify-center hover:opacity-90 transition-opacity">
             <span className="text-6xl mb-4">🂡</span>
             <h3 className="text-xl font-bold text-white">Poker</h3>
