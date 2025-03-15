@@ -36,6 +36,18 @@ export default function WaitingRoomPage() {
     };
   }, [gameId, setGameRoom, userRole, router]);
 
+  // If the current user is a PLAYER and is no longer in the room, redirect them back
+  useEffect(() => {
+    if (userRole?.role === "PLAYER" && gameRoom) {
+      const isInRoom = gameRoom.players.some(
+        (player) => player.id === userRole.playerId,
+      );
+      if (!isInRoom) {
+        router.push("/poker");
+      }
+    }
+  }, [gameRoom, userRole, router]);
+
   const handleAddFakePlayer = async () => {
     try {
       // Generate a fake player's name
@@ -142,7 +154,6 @@ export default function WaitingRoomPage() {
                         className="flex items-center justify-between py-2"
                       >
                         <span>{player.name}</span>
-                        {/* Added items-center class below for proper vertical alignment */}
                         <div className="flex items-center gap-2">
                           {player.online && (
                             <span className="text-xs bg-primary/20 px-2 py-1 rounded">
