@@ -23,4 +23,6 @@ public class Player {
     private String handRanking;
     private String lastAction;
     private Integer lastActionAmount;
+    @Builder.Default
+    private boolean fake = false;
 }

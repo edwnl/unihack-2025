@@ -121,4 +121,22 @@ public class GameRoomController {
                 })
                 .orElse(ResponseEntity.notFound().build());
     }
+
+    @PostMapping("/dealer/add-fake-player")
+    public ResponseEntity<?> addFakePlayer(@RequestBody CreatePlayerRequest request) {
+        if (request.getGameCode() == null || request.getName() == null) {
+            return ResponseEntity.badRequest().body("Game code and name are required");
+        }
+
+        Player player = gameRoomService.addFakePlayerToRoom(
+                request.getGameCode(),
+                request.getName()
+        );
+
+        if (player == null) {
+            return ResponseEntity.badRequest().body("Unable to add fake player. Room might be full or does not exist.");
+        }
+
+        return ResponseEntity.ok(player);
+    }
 }

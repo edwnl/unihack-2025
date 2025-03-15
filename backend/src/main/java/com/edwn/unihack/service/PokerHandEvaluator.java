@@ -1,4 +1,3 @@
-// backend/src/main/java/com/edwn/unihack/service/PokerHandEvaluator.java
 package com.edwn.unihack.service;
 
 import com.edwn.unihack.model.Card;

@@ -1,6 +1,7 @@
 // backend/src/main/java/com/edwn/unihack/service/GameRoomService.java (refactored)
 package com.edwn.unihack.service;
 
+import com.edwn.unihack.model.Card;
 import com.edwn.unihack.model.GameAction;
 import com.edwn.unihack.model.GameRoom;
 import com.edwn.unihack.model.Player;
@@ -42,6 +43,24 @@ public class GameRoomService {
 
     public Optional<GameRoom> findRoomByCode(String code) {
         return Optional.ofNullable(gameRooms.get(code));
+    }
+
+    public boolean scanCard(String gameCode, Card card) {
+        GameRoom room = gameRooms.get(gameCode);
+        if (room == null) {
+            return false;
+        }
+
+        // Create a SCAN_CARD action
+        GameAction scanAction = GameAction.builder()
+                .type(GameAction.ActionType.SCAN_CARD)
+                .card(card)
+                .timestamp(LocalDateTime.now())
+                .build();
+
+        // Process the card scan
+        processAction(gameCode, scanAction);
+        return true;
     }
 
     public Player addPlayerToRoom(String gameCode, String name, boolean online, boolean visuallyImpaired) {
@@ -162,5 +181,42 @@ public class GameRoomService {
         if (room != null) {
             messagingTemplate.convertAndSend("/topic/game/" + gameCode, room);
         }
+    }
+
+    public Player addFakePlayerToRoom(String gameCode, String name) {
+        GameRoom room = gameRooms.get(gameCode);
+        if (room == null || room.getPlayers().size() >= 5) { 
+            return null;
+        }
+    
+        Player player = Player.builder()
+                .id(UUID.randomUUID().toString())
+                .name(name)
+                .online(false)
+                .visuallyImpaired(false)
+                .chips(1000) // Starting chips
+                .active(true)
+                .folded(false)
+                .fake(true)  // This is a fake player
+                .build();
+    
+        room.getPlayers().add(player);
+        
+        // Create a JOIN action
+        GameAction joinAction = GameAction.builder()
+                .playerId(player.getId())
+                .playerName(player.getName())
+                .type(GameAction.ActionType.JOIN)
+                .timestamp(LocalDateTime.now())
+                .build();
+        room.getActions().add(joinAction);
+        
+        // Add a LOG action
+        gameLogService.addLogAction(room, "Fake player '" + name + "' added to the game");
+        
+        // Notify all clients about the update
+        notifyRoomUpdate(gameCode);
+        
+        return player;
     }
 }
