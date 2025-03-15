@@ -57,7 +57,7 @@ public class PokerHandEvaluator {
             return "Full House";
         if (value > 10)
             return "Four of a Kind";
-        if (value > 4)
+        if (value > 3)
             return "Straight Flush";
         return "Royal Flush";
     }
