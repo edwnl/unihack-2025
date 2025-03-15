@@ -25,9 +25,18 @@ export default function WaitingRoomPage() {
     connectWebSocket(gameId, (updatedRoom) => {
       setGameRoom(updatedRoom);
 
-      // If game has started, redirect to game page
+      // If the game is no longer WAITING, we decide where to redirect
       if (updatedRoom.gameState !== "WAITING") {
-        router.push(`/poker/game/${gameId}`);
+        // If disbanded or ended, go back to /poker
+        if (
+          updatedRoom.gameState === "ENDED" ||
+          updatedRoom.gameState === "DISBANDED"
+        ) {
+          router.push("/poker");
+        } else {
+          // Otherwise, assume the game has started
+          router.push(`/poker/game/${gameId}`);
+        }
       }
     });
 
@@ -92,16 +101,29 @@ export default function WaitingRoomPage() {
     setTimeout(() => setIsCopied(false), 2000);
   };
 
-  // NEW: Function to handle leaving the game
+  // Function to handle leaving/disbanding the game
   const handleLeaveGame = async () => {
     try {
-      const response = await fetch(
-        `${backendUrl}/api/game/${gameId}/leave?playerId=${userRole?.playerId}`,
-        { method: "POST" },
-      );
+      let response;
+      if (userRole?.role === "DEALER") {
+        // If dealer leaves, disband the room (kick all players)
+        response = await fetch(`${backendUrl}/api/game/${gameId}/disband`, {
+          method: "POST",
+        });
+      } else {
+        response = await fetch(
+          `${backendUrl}/api/game/${gameId}/leave?playerId=${userRole?.playerId}`,
+          { method: "POST" },
+        );
+      }
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(errorText || "Failed to leave game");
+        throw new Error(
+          errorText ||
+            (userRole?.role === "DEALER"
+              ? "Failed to disband game"
+              : "Failed to leave game"),
+        );
       }
       router.push("/poker");
     } catch (err) {
@@ -245,7 +267,7 @@ export default function WaitingRoomPage() {
 
         <div className="text-center">
           <Button variant="ghost" onClick={handleLeaveGame}>
-            Leave Game
+            {userRole?.role === "DEALER" ? "Disband Room" : "Leave Game"}
           </Button>
         </div>
       </div>

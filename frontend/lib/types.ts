@@ -44,6 +44,7 @@ export type GameRoomType = {
     | "TURN"
     | "RIVER"
     | "SHOWDOWN"
+    | "DISBANDED"
     | "ENDED";
   waitingForCards: boolean;
   communityCards: CardType[];
