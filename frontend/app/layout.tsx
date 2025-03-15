@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Poppins } from "next/font/google";
 import { GameProvider } from "@/lib/game-context";
+import DebugNavigation from "@/components/debug-navigation";
 
 const poppins = Poppins({
   subsets: ["latin"],
@@ -21,6 +22,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className={`${poppins.className} antialiased`}>
+      <DebugNavigation/>
         <GameProvider>{children}</GameProvider>
       </body>
     </html>
