@@ -16,9 +16,9 @@ export default function StartPage() {
     });
 
     if (role === "PLAYER") {
-      router.push("/start/player");
+      router.push("/pick-game/start/player");
     } else {
-      router.push("/start/dealer");
+      router.push("/pick-game/start/dealer");
     }
   };
 
@@ -27,7 +27,7 @@ export default function StartPage() {
       <Button
         variant="ghost"
         className="absolute top-4 left-4"
-        onClick={() => router.push("/")}
+        onClick={() => router.push("/pick-game")}
       >
         <ArrowLeft className="w-5 h-5 mr-1" />
         Back
