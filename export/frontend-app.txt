@@ -15,8 +15,8 @@ const poppins = Poppins({
 });
 
 export const metadata: Metadata = {
-  title: "Poker Game",
-  description: "Accessible poker game for everyone",
+  title: "Shuffl",
+  description: "Accessible card games platform for everyone",
 };
 
 export default function RootLayout({
@@ -57,9 +57,19 @@ export default function Home() {
   if (!mounted) return null;
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-start pt-16 md:pt-24 lg:justify-center relative overflow-hidden px-4">
-      {/* Play Now Button */}
-      <div className="absolute top-5 right-5 z-10">
+    <main className="flex min-h-screen flex-col items-center justify-start relative overflow-hidden px-4">
+      {/* Navigation Area */}
+      <div className="w-full flex justify-between pt-5 sm:pt-6 md:pt-8 mb-10 sm:mb-16 md:mb-24">
+        {/* FAB with Text and Card Symbol */}
+        <motion.div
+          className="bg-white text-black rounded-full shadow-lg px-4 py-2 flex items-center justify-center cursor-pointer"
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+        >
+          <span className="font-bold text-base md:text-lg">shuffl 🂡</span>
+        </motion.div>
+      
+        {/* Play Now Button */}
         <Link href="/pick-game">
           <motion.button
             className="bg-yellow-300 hover:bg-yellow-400 text-black font-bold py-2 px-4 md:py-3 md:px-6 rounded-full shadow-lg text-sm md:text-base"
@@ -72,7 +82,7 @@ export default function Home() {
       </div>
 
       {/* Main Content */}
-      <div className="flex flex-col items-center justify-center w-full">
+      <div className="flex flex-col items-center justify-center w-full mt-8 sm:mt-12 md:mt-0">
         {/* Text Section */}
         <div className="max-w-4xl text-center mb-10 md:mb-14">
           <motion.h1

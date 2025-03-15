@@ -1117,7 +1117,7 @@ export default function DebugNavigation() {
   const router = useRouter();
 
   return (
-    <div className="fixed top-2 left-2 z-50 flex gap-2 bg-black/30 backdrop-blur-sm p-1 rounded-md">
+    <div className="fixed top-24 left-2 z-50 flex flex-col gap-2 bg-black/30 backdrop-blur-sm p-1 rounded-md">
       <button
         onClick={() => router.push("/poker/dealer")}
         className="text-xs p-1 hover:bg-gray-700 rounded-md"
@@ -1135,7 +1135,6 @@ export default function DebugNavigation() {
     </div>
   );
 }
-
 ```
 
 

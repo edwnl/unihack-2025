@@ -20,7 +20,7 @@ export default function Home() {
       <div className="w-full flex justify-between pt-5 sm:pt-6 md:pt-8 mb-10 sm:mb-16 md:mb-24">
         {/* FAB with Text and Card Symbol */}
         <motion.div
-          className="bg-white hover:bg-white text-black rounded-full shadow-lg px-4 py-2 flex items-center justify-center cursor-pointer"
+          className="bg-white text-black rounded-full shadow-lg px-4 py-2 flex items-center justify-center cursor-pointer"
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
         >

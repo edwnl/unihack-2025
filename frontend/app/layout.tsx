@@ -1,3 +1,4 @@
+// frontend/app/layout.tsx
 import type { Metadata } from "next";
 import "./globals.css";
 import { Poppins } from "next/font/google";
@@ -10,8 +11,11 @@ const poppins = Poppins({
 });
 
 export const metadata: Metadata = {
-  title: "Poker Game",
-  description: "Accessible poker game for everyone",
+  title: "Shuffl",
+  description: "Accessible card games platform for everyone",
+  icons: {
+    icon: "/favicon.png",
+  },
 };
 
 export default function RootLayout({
@@ -21,6 +25,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
+      <head>
+        {/* Favicon Links */}
+        <link rel="icon" type="image/png" href="/favicon.png" sizes="any" />
+        <link rel="apple-touch-icon" href="/favicon.png" />
+      </head>
       <body className={`${poppins.className} antialiased`}>
         <DebugNavigation />
         <GameProvider>{children}</GameProvider>
