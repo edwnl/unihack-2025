@@ -10,6 +10,10 @@ import CommunityCards from "@/components/community-cards";
 import PlayerHand from "@/components/player-hand";
 import GameActions from "@/components/game-actions";
 import { getPokerPosition } from "@/lib/utils";
+import { Input } from "./ui/input";
+import { useAzureSpeechRecognition } from "@/hooks/useAzureSpeechRecognition";
+import { Mic, MicOff } from "lucide-react";
+import { findBestPokerActionMatch, extractNumber } from "@/lib/fuzzy-match";
 
 interface DealerViewProps {
   gameId: string;
@@ -18,7 +22,22 @@ interface DealerViewProps {
 export default function DealerView({ gameId }: DealerViewProps) {
   const { gameRoom } = useGameContext();
   const [error, setError] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string>("");
+  const [raiseInput, setRaiseInput] = useState<number>(0);
   const [cardsSeen, setCardsSeen] = useState(new Set<string>());
+
+  // Use Azure speech recognition hook
+  const {
+    isListening,
+    recognizedText,
+    startListening,
+    stopListening,
+    clearRecognizedText,
+  } = useAzureSpeechRecognition((transcript) => {
+    handleVoiceCommand(transcript);
+    // Clear recognized text after 3 seconds
+    setTimeout(() => clearRecognizedText(), 3000);
+  });
 
   // Early return if gameRoom is not yet loaded
   if (!gameRoom) return <p>Loading dealer view...</p>;
@@ -26,6 +45,17 @@ export default function DealerView({ gameId }: DealerViewProps) {
   // Detect if the game is finished (SHOWDOWN or ENDED)
   const isGameOver =
     gameRoom.gameState === "SHOWDOWN" || gameRoom.gameState === "ENDED";
+
+  // Determine current player from gameRoom using currentPlayerIndex
+  const currentPlayer = gameRoom.players[gameRoom.currentPlayerIndex];
+  // Recalculate call amount from current player's bet (from gameRoom.bets)
+  const getCallAmount = () => {
+    if (!currentPlayer) return 0;
+    const currentPlayerBet =
+      (gameRoom.bets && gameRoom.bets[currentPlayer.id]) || 0;
+    if (!gameRoom.currentBet) return 0;
+    return gameRoom.currentBet - currentPlayerBet;
+  };
 
   const handleScanCard = () => {
     const suits = ["HEARTS", "DIAMONDS", "CLUBS", "SPADES"];
@@ -81,6 +111,277 @@ export default function DealerView({ gameId }: DealerViewProps) {
     }
   };
 
+  // Voice command handling
+  const handleVoiceCommand = (command: string) => {
+    // If the game is over, ignore voice commands
+    if (isGameOver) return;
+
+    // Clean up the command - remove punctuation and normalize
+    const normalized = command
+      .toLowerCase()
+      .trim()
+      .replace(/[.,!?;:]/g, "");
+
+    console.log("Dealer processing voice command:", normalized);
+
+    if (currentPlayer.folded) {
+      setErrorMsg("Player has already folded.");
+      return;
+    }
+    const callAmt = getCallAmount();
+
+    // Check for player-specific commands format: "player [action]"
+    const isPlayerCommand =
+      normalized.startsWith("player") || normalized.startsWith("layer");
+
+    if (isPlayerCommand) {
+      // Extract the action part after "player "
+      const actionPart = normalized.replace(/^(player|layer)\s+/i, "");
+
+      // Use fuzzy matching to identify the action
+      const action = findBestPokerActionMatch(actionPart);
+
+      if (!action) {
+        setErrorMsg(
+          "Unrecognized action. Try again with fold, check, call, raise, bet, or all-in.",
+        );
+        return;
+      }
+
+      // Handle different actions
+      if (action === "fold") {
+        sendGameAction(gameId, {
+          playerId: currentPlayer.id,
+          playerName: currentPlayer.name,
+          type: "FOLD",
+        });
+      } else if (action === "check") {
+        if (callAmt > 0) {
+          setErrorMsg(
+            "Cannot check when there's a bet to call. Did you mean 'call'?",
+          );
+          return;
+        }
+        sendGameAction(gameId, {
+          playerId: currentPlayer.id,
+          playerName: currentPlayer.name,
+          type: "CHECK",
+        });
+      } else if (action === "call") {
+        if (callAmt === 0) {
+          setErrorMsg(
+            "Call amount is zero. Please say 'player check' instead.",
+          );
+          return;
+        }
+        sendGameAction(gameId, {
+          playerId: currentPlayer.id,
+          playerName: currentPlayer.name,
+          type: "CALL",
+          amount: callAmt,
+        });
+      } else if (action === "raise" || action === "bet") {
+        // Extract the amount from the original command
+        const amount = extractNumber(actionPart);
+
+        if (!amount) {
+          setErrorMsg(
+            `No amount specified for ${action}. Please say '${action} [amount]'.`,
+          );
+          return;
+        }
+
+        if (amount <= 0) {
+          setErrorMsg(`${action} amount must be positive.`);
+          return;
+        }
+
+        if (amount + callAmt > currentPlayer.chips) {
+          setErrorMsg(`${action} amount exceeds player's chips.`);
+          return;
+        }
+
+        setErrorMsg("");
+        sendGameAction(gameId, {
+          playerId: currentPlayer.id,
+          playerName: currentPlayer.name,
+          type: action.toUpperCase() === "BET" ? "BET" : "RAISE",
+          amount: amount,
+        });
+      } else if (action === "allin") {
+        // Handle all-in as a special case
+        const allInAmount = currentPlayer.chips;
+        sendGameAction(gameId, {
+          playerId: currentPlayer.id,
+          playerName: currentPlayer.name,
+          type: callAmt > 0 ? "RAISE" : "BET",
+          amount: allInAmount,
+        });
+      }
+      return;
+    }
+
+    // Process direct action commands without the "player" prefix
+    const action = findBestPokerActionMatch(normalized);
+
+    if (!action) {
+      console.log("Unrecognized voice command:", normalized);
+      return;
+    }
+
+    if (action === "fold") {
+      sendGameAction(gameId, {
+        playerId: currentPlayer.id,
+        playerName: currentPlayer.name,
+        type: "FOLD",
+      });
+    } else if (action === "check") {
+      if (callAmt > 0) {
+        setErrorMsg(
+          "Cannot check when there's a bet to call. Did you mean 'call'?",
+        );
+        return;
+      }
+      sendGameAction(gameId, {
+        playerId: currentPlayer.id,
+        playerName: currentPlayer.name,
+        type: "CHECK",
+      });
+    } else if (action === "call") {
+      if (callAmt === 0) {
+        setErrorMsg("Call amount is zero. Please say 'check' instead.");
+        return;
+      }
+      sendGameAction(gameId, {
+        playerId: currentPlayer.id,
+        playerName: currentPlayer.name,
+        type: "CALL",
+        amount: callAmt,
+      });
+    } else if (action === "raise" || action === "bet") {
+      // Extract the amount from the command
+      const amount = extractNumber(normalized);
+
+      if (!amount) {
+        setErrorMsg(
+          `No amount specified for ${action}. Please say '${action} [amount]'.`,
+        );
+        return;
+      }
+
+      if (amount <= 0) {
+        setErrorMsg(`${action} amount must be positive.`);
+        return;
+      }
+
+      if (amount + callAmt > currentPlayer.chips) {
+        setErrorMsg(`${action} amount exceeds player's chips.`);
+        return;
+      }
+
+      setErrorMsg("");
+      sendGameAction(gameId, {
+        playerId: currentPlayer.id,
+        playerName: currentPlayer.name,
+        type: action.toUpperCase() === "BET" ? "BET" : "RAISE",
+        amount: amount,
+      });
+    } else if (action === "allin") {
+      // Handle all-in
+      const allInAmount = currentPlayer.chips;
+      sendGameAction(gameId, {
+        playerId: currentPlayer.id,
+        playerName: currentPlayer.name,
+        type: callAmt > 0 ? "RAISE" : "BET",
+        amount: allInAmount,
+      });
+    } else {
+      console.log("Unrecognized action:", action);
+    }
+  };
+
+  // Manual action handlers
+  const handleManualFold = () => {
+    if (isGameOver) return; // Do nothing if game ended
+    sendGameAction(gameId, {
+      playerId: currentPlayer.id,
+      playerName: currentPlayer.name,
+      type: "FOLD",
+    });
+  };
+  const handleManualCheck = () => {
+    if (isGameOver) return;
+    const callAmt = getCallAmount();
+    if (callAmt > 0) {
+      setErrorMsg("Cannot check when there's a bet to call. Please use Call.");
+      return;
+    }
+    setErrorMsg(""); // Clear error message
+    sendGameAction(gameId, {
+      playerId: currentPlayer.id,
+      playerName: currentPlayer.name,
+      type: "CHECK",
+    });
+  };
+  const handleManualCall = () => {
+    if (isGameOver) return;
+    const callAmt = getCallAmount();
+    if (callAmt === 0) {
+      setErrorMsg("Call amount is zero. Please use Check.");
+      return;
+    }
+    sendGameAction(gameId, {
+      playerId: currentPlayer.id,
+      playerName: currentPlayer.name,
+      type: "CALL",
+      amount: callAmt,
+    });
+  };
+  const handleManualRaise = () => {
+    if (isGameOver) return;
+    if (raiseInput <= 0) {
+      setErrorMsg("Raise amount must be positive.");
+      return;
+    }
+    if (raiseInput + getCallAmount() > (currentPlayer?.chips || 0)) {
+      setErrorMsg("Raise amount exceeds player's chips.");
+      return;
+    }
+    setErrorMsg("");
+    sendGameAction(gameId, {
+      playerId: currentPlayer.id,
+      playerName: currentPlayer.name,
+      type: "RAISE",
+      amount: raiseInput,
+    });
+  };
+
+  const handleManualAllIn = () => {
+    if (!currentPlayer) return;
+
+    const allInAmount = currentPlayer.chips;
+    if (allInAmount <= 0) {
+      setErrorMsg("Player has no chips to go all in with.");
+      return;
+    }
+
+    setErrorMsg("");
+    sendGameAction(gameId, {
+      playerId: currentPlayer.id,
+      playerName: currentPlayer.name,
+      type: getCallAmount() > 0 ? "RAISE" : "BET",
+      amount: allInAmount,
+    });
+  };
+
+  const toggleListening = () => {
+    if (isListening) {
+      stopListening();
+    } else {
+      startListening();
+    }
+  };
+
   return (
     <div className="w-full max-w-4xl">
       <Card className="mb-6">
@@ -96,6 +397,24 @@ export default function DealerView({ gameId }: DealerViewProps) {
                   Pot: {gameRoom.pot}
                 </span>
               </div>
+            </div>
+            <div className="mt-2 flex justify-center">
+              <Button
+                onClick={toggleListening}
+                className={`px-3 py-1 ${isListening ? "bg-red-500" : ""}`}
+              >
+                {isListening ? (
+                  <div className="flex items-center">
+                    <MicOff className="h-4 w-4 mr-1" />
+                    Stop Listening
+                  </div>
+                ) : (
+                  <div className="flex items-center">
+                    <Mic className="h-4 w-4 mr-1" />
+                    Start Listening
+                  </div>
+                )}
+              </Button>
             </div>
           </CardTitle>
         </CardHeader>
@@ -145,13 +464,98 @@ export default function DealerView({ gameId }: DealerViewProps) {
               Scan Random Card
             </Button>
 
+            {/* Manual Action Panel for current player */}
+            <div className="p-4 border rounded-md">
+              <p className="text-sm font-medium mb-2">
+                Current Action for: {currentPlayer?.name}
+              </p>
+              <div className="flex justify-between items-center mb-2 text-sm">
+                <span>Call Amount: {getCallAmount()}</span>
+                <span>Chips: {currentPlayer?.chips}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  disabled={gameRoom.waitingForCards || currentPlayer?.folded}
+                  onClick={handleManualFold}
+                  variant="secondary"
+                >
+                  Fold
+                </Button>
+                {getCallAmount() === 0 ? (
+                  <Button
+                    disabled={gameRoom.waitingForCards || currentPlayer?.folded}
+                    onClick={handleManualCheck}
+                  >
+                    Check
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={handleManualCall}
+                    disabled={
+                      getCallAmount() > (currentPlayer?.chips || 0) ||
+                      gameRoom.waitingForCards ||
+                      currentPlayer?.folded
+                    }
+                  >
+                    Call ({getCallAmount()})
+                  </Button>
+                )}
+                <Input
+                  type="number"
+                  min={1}
+                  max={Math.max(
+                    0,
+                    (currentPlayer?.chips || 0) - getCallAmount(),
+                  )}
+                  value={raiseInput.toString()}
+                  onChange={(e) => setRaiseInput(Number(e.target.value))}
+                  className="w-16"
+                  disabled={gameRoom.waitingForCards || currentPlayer?.folded}
+                />
+                <Button
+                  onClick={handleManualRaise}
+                  disabled={
+                    raiseInput <= 0 ||
+                    raiseInput + getCallAmount() >
+                      (currentPlayer?.chips || 0) ||
+                    gameRoom.waitingForCards ||
+                    currentPlayer?.folded
+                  }
+                >
+                  Raise
+                </Button>
+                <Button
+                  onClick={handleManualAllIn}
+                  disabled={
+                    (currentPlayer?.chips || 0) <= 0 ||
+                    gameRoom.waitingForCards ||
+                    currentPlayer?.folded
+                  }
+                  className="bg-red-600 hover:bg-red-700"
+                >
+                  All In
+                </Button>
+              </div>
+            </div>
+
             {(gameRoom.gameState === "SHOWDOWN" ||
               gameRoom.gameState === "ENDED") && (
               <Button onClick={handleStartNewHand} className="w-full">
                 Start New Hand
               </Button>
             )}
+
             {error && <p className="text-red-500 text-center mt-4">{error}</p>}
+            {recognizedText && (
+              <p className="mt-2 text-sm text-center text-muted-foreground">
+                Recognized: {recognizedText}
+              </p>
+            )}
+            {errorMsg && (
+              <p className="mt-2 text-sm text-center text-red-500">
+                {errorMsg}
+              </p>
+            )}
           </div>
         </CardContent>
       </Card>
