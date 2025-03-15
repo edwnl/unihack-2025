@@ -1,6 +1,4 @@
-// backend/src/main/java/com/edwn/unihack/service/GameRoomService.java (refactored)
 package com.edwn.unihack.service;
-
 
 import com.edwn.unihack.model.Card;
 import com.edwn.unihack.model.GameAction;
@@ -23,20 +21,17 @@ public class GameRoomService {
     private final CardHandlingService cardHandlingService;
     private final BettingService bettingService;
     private final GameLogService gameLogService;
-    private final GameStateService gameStateService;
-    private final CardHandlingService cardHandlingService;
-    private final BettingService bettingService;
-    private final GameLogService gameLogService;
 
-    this.messagingTemplate = messagingTemplate;
-    this.gameStateService = gameStateService;
-    this.cardHandlingService = cardHandlingService;
-    this.bettingService = bettingService;
-    this.gameLogService = gameLogService;
-    this.gameStateService = gameStateService;
-    this.cardHandlingService = cardHandlingService;
-    this.bettingService = bettingService;
-    this.gameLogService = gameLogService;
+    public GameRoomService(SimpMessagingTemplate messagingTemplate,
+                           GameStateService gameStateService,
+                           CardHandlingService cardHandlingService,
+                           BettingService bettingService,
+                           GameLogService gameLogService) {
+        this.messagingTemplate = messagingTemplate;
+        this.gameStateService = gameStateService;
+        this.cardHandlingService = cardHandlingService;
+        this.bettingService = bettingService;
+        this.gameLogService = gameLogService;
     }
 
     public GameRoom createRoom() {
@@ -67,42 +62,6 @@ public class GameRoomService {
         return true;
     }
 
-    public boolean scanCard(String gameCode, Card card) {
-        GameRoom room = gameRooms.get(gameCode);
-        if (room == null) {
-            return false;
-        }
-
-        // Create a SCAN_CARD action
-        GameAction scanAction = GameAction.builder()
-                .type(GameAction.ActionType.SCAN_CARD)
-                .card(card)
-                .timestamp(LocalDateTime.now())
-                .build();
-
-        // Process the card scan
-        processAction(gameCode, scanAction);
-        return true;
-    }
-
-
-    public boolean scanCard(String gameCode, Card card) {
-        GameRoom room = gameRooms.get(gameCode);
-        if (room == null) {
-            return false;
-        }
-
-        // Create a SCAN_CARD action
-        GameAction scanAction = GameAction.builder()
-                .type(GameAction.ActionType.SCAN_CARD)
-                .card(card)
-                .timestamp(LocalDateTime.now())
-                .build();
-
-        // Process the card scan
-        processAction(gameCode, scanAction);
-        return true;
-    }
     public Player addPlayerToRoom(String gameCode, String name, boolean online, boolean visuallyImpaired) {
         GameRoom room = gameRooms.get(gameCode);
         if (room == null || room.getPlayers().size() >= 5) {
@@ -223,102 +182,40 @@ public class GameRoomService {
         }
     }
 
-    private boolean isRoundComplete(GameRoom room) {
-        if (room.isWaitingForCards()) {
-            return false;
+    public Player addFakePlayerToRoom(String gameCode, String name) {
+        GameRoom room = gameRooms.get(gameCode);
+        if (room == null || room.getPlayers().size() >= 5) {
+            return null;
         }
 
-        int activePlayers = 0;
-        int targetBet = room.getCurrentBet();
-        Set<String> actedPlayerIds = new HashSet<>();
+        Player player = Player.builder()
+                .id(UUID.randomUUID().toString())
+                .name(name)
+                .online(false)
+                .visuallyImpaired(false)
+                .chips(1000) // Starting chips
+                .active(true)
+                .folded(false)
+                .fake(true)  // This is a fake player
+                .build();
 
-        // Find the most recent betting round start
-        LocalDateTime roundStartTime = null;
-        for (int i = room.getActions().size() - 1; i >= 0; i--) {
-            GameAction action = room.getActions().get(i);
-            if (action.getType() == GameAction.ActionType.LOG &&
-                    (action.getMessage() != null &&
-                            (action.getMessage().contains("betting begins") ||
-                                    action.getMessage().contains("Pre-flop betting begins")))) {
-                roundStartTime = action.getTimestamp();
-                break;
-            }
-        }
+        room.getPlayers().add(player);
 
-        if (roundStartTime == null) {
-            // If no round start found, use an old timestamp
-            roundStartTime = LocalDateTime.now().minusDays(1);
-        }
+        // Create a JOIN action
+        GameAction joinAction = GameAction.builder()
+                .playerId(player.getId())
+                .playerName(player.getName())
+                .type(GameAction.ActionType.JOIN)
+                .timestamp(LocalDateTime.now())
+                .build();
+        room.getActions().add(joinAction);
 
-        // Get all player actions in this round
-        for (GameAction action : room.getActions()) {
-            if (action.getTimestamp() != null &&
-                    action.getTimestamp().isAfter(roundStartTime) &&
-                    action.getPlayerId() != null) {
+        // Add a LOG action
+        gameLogService.addLogAction(room, "Fake player '" + name + "' added to the game");
 
-                // Only include betting actions
-                if (action.getType() == GameAction.ActionType.CHECK ||
-                        action.getType() == GameAction.ActionType.BET ||
-                        action.getType() == GameAction.ActionType.CALL ||
-                        action.getType() == GameAction.ActionType.RAISE ||
-                        action.getType() == GameAction.ActionType.FOLD) {
+        // Notify all clients about the update
+        notifyRoomUpdate(gameCode);
 
-                    actedPlayerIds.add(action.getPlayerId());
-                }
-            }
-        }
-
-        // Special case for preflop big blind
-        boolean bigBlindSpecialCase = false;
-        Player bigBlindPlayer = null;
-
-        if (room.getGameState() == GameRoom.GameState.PREFLOP) {
-            int bigBlindPos;
-            if (room.getPlayers().size() == 2) {
-                bigBlindPos = (room.getDealerPosition() + 1) % 2;
-            } else {
-                bigBlindPos = (room.getDealerPosition() + 2) % room.getPlayers().size();
-            }
-
-            if (bigBlindPos < room.getPlayers().size()) {
-                bigBlindPlayer = room.getPlayers().get(bigBlindPos);
-
-                // Check if BB has taken an action other than posting the blind
-                boolean bbHasActed = actedPlayerIds.contains(bigBlindPlayer.getId());
-
-                // If no one has raised (current bet = BB amount) and BB hasn't acted, they need to act
-                bigBlindSpecialCase = !bbHasActed && targetBet == 10;
-            }
-        }
-
-        // Count active players and check if they've all acted and matched the bet
-        for (Player player : room.getPlayers()) {
-            if (player.isFolded() || !player.isActive()) continue;
-
-            activePlayers++;
-            int playerBet = room.getBets().getOrDefault(player.getId(), 0);
-
-            // Check if player hasn't matched the current bet
-            if (playerBet < targetBet) {
-                return false;
-            }
-
-            // Check if player hasn't acted this round
-            if (!actedPlayerIds.contains(player.getId())) {
-                // Special case for BB who can check if no raises
-                if (bigBlindSpecialCase && bigBlindPlayer != null &&
-                        player.getId().equals(bigBlindPlayer.getId())) {
-                    return false;
-                } else if (targetBet == 0) {
-                    // If bet is 0, everyone must act
-                    return false;
-                }
-                // If there's a bet and player hasn't acted, they must have folded or are already all-in
-            }
-        }
-
-        // If we have only one active player, round is complete
-        return activePlayers <= 1 || !actedPlayerIds.isEmpty();
+        return player;
     }
-
 }
