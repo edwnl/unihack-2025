@@ -228,4 +228,29 @@ public class GameRoomService {
 
         return player;
     }
+
+    // NEW METHOD: disbandRoom
+    public boolean disbandRoom(String gameCode) {
+        GameRoom room = gameRooms.get(gameCode);
+        if (room == null) {
+            return false;
+        }
+
+        // Log that the dealer disbanded the game
+        gameLogService.addLogAction(room, "Dealer has disbanded the game. All players removed.");
+
+        // Clear all players
+        room.getPlayers().clear();
+
+        // Set the game state to ENDED (or DISBANDED, as you prefer)
+        room.setGameState(GameRoom.GameState.ENDED);
+
+        // Broadcast one final update to show that the game is ended and players are gone
+        notifyRoomUpdate(gameCode);
+
+        // Remove the room from memory so it's no longer accessible
+        gameRooms.remove(gameCode);
+
+        return true;
+    }
 }

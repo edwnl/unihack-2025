@@ -139,7 +139,7 @@ public class GameRoomController {
         return ResponseEntity.ok(player);
     }
     
-    // NEW LEAVE ENDPOINT: Used by a player to leave the game or by the dealer to kick a player.
+    // Existing leave endpoint for players to leave the game
     @PostMapping("/{gameCode}/leave")
     public ResponseEntity<?> leaveGame(
             @PathVariable String gameCode,
@@ -148,6 +148,16 @@ public class GameRoomController {
         boolean removed = gameRoomService.removePlayerFromRoom(gameCode, playerId);
         if (!removed) {
             return ResponseEntity.badRequest().body("Could not leave game. Room might not exist or player not found.");
+        }
+        return ResponseEntity.ok().build();
+    }
+    
+    // NEW endpoint: Dealer disbands the room, kicking all players.
+    @PostMapping("/{gameCode}/disband")
+    public ResponseEntity<?> disbandGame(@PathVariable String gameCode) {
+        boolean disbanded = gameRoomService.disbandRoom(gameCode);
+        if (!disbanded) {
+            return ResponseEntity.badRequest().body("Could not disband game. Room might not exist or disband action failed.");
         }
         return ResponseEntity.ok().build();
     }
