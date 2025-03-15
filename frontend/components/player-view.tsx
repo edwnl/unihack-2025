@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import PlayerHand from "@/components/player-hand";
 import CommunityCards from "@/components/community-cards";
 import PlayerActions from "@/components/player-actions";
+import AIAdvisor from "@/components/ai-advisor";
 import { getPokerPosition } from "@/lib/utils";
 
 interface PlayerViewProps {
@@ -99,6 +100,15 @@ export default function PlayerView({ gameId }: PlayerViewProps) {
                 currentBet={currentBet}
                 playerCurrentBet={playerBet}
                 pot={pot}
+                isPlayerTurn={isPlayerTurn}
+              />
+            )}
+
+            {/* AI Advisor component */}
+            {currentPlayer.online && isGameActive && (
+              <AIAdvisor
+                gameRoom={gameRoom}
+                player={currentPlayer}
                 isPlayerTurn={isPlayerTurn}
               />
             )}
