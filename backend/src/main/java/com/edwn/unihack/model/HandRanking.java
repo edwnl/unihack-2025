@@ -10,5 +10,6 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class HandRanking {
     private int rank; // 0=high card, 1=pair, 2=two pair, 3=three of a kind, 4=straight, etc.
+    private int value;
     private String description; // "Pair of Aces", "Full House, Kings over Nines", etc.
 }

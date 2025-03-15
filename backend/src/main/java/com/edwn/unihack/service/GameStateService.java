@@ -160,12 +160,12 @@ public class GameStateService {
         StringBuilder handReveal = new StringBuilder("SHOWDOWN - Revealing hands:\n");
 
         // Map to store player's hand evaluation
-        Map<String, HandRanking> handRankings = new HashMap<>();
+        Map<Player, Integer> handRankings = new HashMap<>();
 
         for (Player player : activePlayers) {
             // Evaluate hand
             HandRanking handRanking = PokerHandEvaluator.evaluateHand(player, room.getCommunityCards());
-            handRankings.put(player.getId(), handRanking);
+            handRankings.put(player, handRanking.getValue());
 
             // Set the hand ranking description on the player
             player.setHandRanking(handRanking.getDescription());
@@ -194,35 +194,8 @@ public class GameStateService {
         gameLogService.addLogAction(room, handReveal.toString());
 
         // Determine winner(s) using proper hand comparison
-        List<Player> winners = new ArrayList<>();
-        Player bestPlayer = null;
-        HandRanking bestHandRanking = null;
+        List<Player> winners = PokerHandEvaluator.bestHand(handRankings);
 
-        for (Player player : activePlayers) {
-            HandRanking handRanking = handRankings.get(player.getId());
-
-            if (bestPlayer == null || bestHandRanking == null) {
-                // First player, initialize as best
-                bestPlayer = player;
-                bestHandRanking = handRanking;
-                winners.add(player);
-            } else {
-                // Compare current player's hand with the best hand so far
-                int comparison = PokerHandEvaluator.compareHands(handRanking, bestHandRanking);
-
-                if (comparison > 0) {
-                    // Current player has better hand
-                    winners.clear();
-                    winners.add(player);
-                    bestPlayer = player;
-                    bestHandRanking = handRanking;
-                } else if (comparison == 0) {
-                    // Tie - add as a co-winner
-                    winners.add(player);
-                }
-                // If comparison < 0, current player has worse hand, so ignore
-            }
-        }
 
         // Split pot among winners
         int winAmount = room.getPot() / winners.size();
