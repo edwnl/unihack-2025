@@ -81,4 +81,19 @@ public class GameRoom {
     public enum GameState {
         WAITING, STARTED, PREFLOP, FLOP, TURN, RIVER, SHOWDOWN, ENDED
     }
+
+    public boolean isAllPlayersAllInOrFolded() {
+        int activeNonAllInPlayers = 0;
+
+        for (Player player : getPlayers()) {
+            if (player.isFolded() || !player.isActive()) continue;
+
+            if (player.getChips() > 0) {
+                activeNonAllInPlayers++;
+            }
+        }
+
+        // If there's only 0 or 1 player with chips, all others are all-in
+        return activeNonAllInPlayers <= 1;
+    }
 }
