@@ -1,6 +1,8 @@
 // backend/src/main/java/com/edwn/unihack/service/GameRoomService.java (refactored)
 package com.edwn.unihack.service;
 
+
+import com.edwn.unihack.model.Card;
 import com.edwn.unihack.model.GameAction;
 import com.edwn.unihack.model.GameRoom;
 import com.edwn.unihack.model.Player;
@@ -44,6 +46,24 @@ public class GameRoomService {
         return Optional.ofNullable(gameRooms.get(code));
     }
 
+
+    public boolean scanCard(String gameCode, Card card) {
+        GameRoom room = gameRooms.get(gameCode);
+        if (room == null) {
+            return false;
+        }
+
+        // Create a SCAN_CARD action
+        GameAction scanAction = GameAction.builder()
+                .type(GameAction.ActionType.SCAN_CARD)
+                .card(card)
+                .timestamp(LocalDateTime.now())
+                .build();
+
+        // Process the card scan
+        processAction(gameCode, scanAction);
+        return true;
+    }
     public Player addPlayerToRoom(String gameCode, String name, boolean online, boolean visuallyImpaired) {
         GameRoom room = gameRooms.get(gameCode);
         if (room == null || room.getPlayers().size() >= 5) {
