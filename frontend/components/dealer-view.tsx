@@ -1,7 +1,7 @@
 // frontend/components/dealer-view.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useGameContext } from "@/lib/game-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -63,6 +63,11 @@ export default function DealerView({ gameId }: DealerViewProps) {
   const [raiseInput, setRaiseInput] = useState<number>(0);
   const [cardsSeen, setCardsSeen] = useState(new Set<string>());
   const [scanDelay, setScanDelay] = useState(false);
+  const foldRef = useRef<HTMLButtonElement>(null);
+  const checkRef = useRef<HTMLButtonElement>(null);
+  const raiseRef = useRef<HTMLButtonElement>(null);
+  const allInRef = useRef<HTMLButtonElement>(null);
+  const callRef = useRef<HTMLButtonElement>(null);
 
   // Use Azure speech recognition hook
   const {
@@ -186,98 +191,6 @@ export default function DealerView({ gameId }: DealerViewProps) {
       setErrorMsg("Player has already folded.");
       return;
     }
-    const callAmt = getCallAmount();
-
-    // Check for player-specific commands format: "player [action]"
-    const isPlayerCommand =
-      normalized.startsWith("player") || normalized.startsWith("layer");
-
-    if (isPlayerCommand) {
-      // Extract the action part after "player "
-      const actionPart = normalized.replace(/^(player|layer)\s+/i, "");
-
-      // Use fuzzy matching to identify the action
-      const action = findBestPokerActionMatch(actionPart);
-
-      if (!action) {
-        setErrorMsg(
-          "Unrecognized action. Try again with fold, check, call, raise, bet, or all-in.",
-        );
-        return;
-      }
-
-      // Handle different actions
-      if (action === "fold") {
-        sendGameAction(gameId, {
-          playerId: currentPlayer.id,
-          playerName: currentPlayer.name,
-          type: "FOLD",
-        });
-      } else if (action === "check") {
-        if (callAmt > 0) {
-          setErrorMsg(
-            "Cannot check when there's a bet to call. Did you mean 'call'?",
-          );
-          return;
-        }
-        sendGameAction(gameId, {
-          playerId: currentPlayer.id,
-          playerName: currentPlayer.name,
-          type: "CHECK",
-        });
-      } else if (action === "call") {
-        if (callAmt === 0) {
-          setErrorMsg(
-            "Call amount is zero. Please say 'player check' instead.",
-          );
-          return;
-        }
-        sendGameAction(gameId, {
-          playerId: currentPlayer.id,
-          playerName: currentPlayer.name,
-          type: "CALL",
-          amount: callAmt,
-        });
-      } else if (action === "raise" || action === "bet") {
-        // Extract the amount from the original command
-        const amount = extractNumber(actionPart);
-
-        if (!amount) {
-          setErrorMsg(
-            `No amount specified for ${action}. Please say '${action} [amount]'.`,
-          );
-          return;
-        }
-
-        if (amount <= 0) {
-          setErrorMsg(`${action} amount must be positive.`);
-          return;
-        }
-
-        if (amount + callAmt > currentPlayer.chips) {
-          setErrorMsg(`${action} amount exceeds player's chips.`);
-          return;
-        }
-
-        setErrorMsg("");
-        sendGameAction(gameId, {
-          playerId: currentPlayer.id,
-          playerName: currentPlayer.name,
-          type: action.toUpperCase() === "BET" ? "BET" : "RAISE",
-          amount: amount,
-        });
-      } else if (action === "allin") {
-        // Handle all-in as a special case
-        const allInAmount = currentPlayer.chips;
-        sendGameAction(gameId, {
-          playerId: currentPlayer.id,
-          playerName: currentPlayer.name,
-          type: callAmt > 0 ? "RAISE" : "BET",
-          amount: allInAmount,
-        });
-      }
-      return;
-    }
 
     // Process direct action commands without the "player" prefix
     const action = findBestPokerActionMatch(normalized);
@@ -288,71 +201,26 @@ export default function DealerView({ gameId }: DealerViewProps) {
     }
 
     if (action === "fold") {
-      sendGameAction(gameId, {
-        playerId: currentPlayer.id,
-        playerName: currentPlayer.name,
-        type: "FOLD",
-      });
+      if (foldRef.current) {
+        foldRef.current.click();
+      }
     } else if (action === "check") {
-      if (callAmt > 0) {
-        setErrorMsg(
-          "Cannot check when there's a bet to call. Did you mean 'call'?",
-        );
-        return;
+      if (checkRef.current) {
+        checkRef.current.click();
       }
-      sendGameAction(gameId, {
-        playerId: currentPlayer.id,
-        playerName: currentPlayer.name,
-        type: "CHECK",
-      });
     } else if (action === "call") {
-      if (callAmt === 0) {
-        setErrorMsg("Call amount is zero. Please say 'check' instead.");
-        return;
+      if (callRef.current) {
+        callRef.current.click();
       }
-      sendGameAction(gameId, {
-        playerId: currentPlayer.id,
-        playerName: currentPlayer.name,
-        type: "CALL",
-        amount: callAmt,
-      });
     } else if (action === "raise" || action === "bet") {
-      // Extract the amount from the command
-      const amount = extractNumber(normalized);
-
-      if (!amount) {
-        setErrorMsg(
-          `No amount specified for ${action}. Please say '${action} [amount]'.`,
-        );
-        return;
+      setRaiseInput(extractNumber(normalized) || 0);
+      if (raiseRef.current) {
+        raiseRef.current.click();
       }
-
-      if (amount <= 0) {
-        setErrorMsg(`${action} amount must be positive.`);
-        return;
-      }
-
-      if (amount + callAmt > currentPlayer.chips) {
-        setErrorMsg(`${action} amount exceeds player's chips.`);
-        return;
-      }
-
-      setErrorMsg("");
-      sendGameAction(gameId, {
-        playerId: currentPlayer.id,
-        playerName: currentPlayer.name,
-        type: action.toUpperCase() === "BET" ? "BET" : "RAISE",
-        amount: amount,
-      });
     } else if (action === "allin") {
-      // Handle all-in
-      const allInAmount = currentPlayer.chips;
-      sendGameAction(gameId, {
-        playerId: currentPlayer.id,
-        playerName: currentPlayer.name,
-        type: callAmt > 0 ? "RAISE" : "BET",
-        amount: allInAmount,
-      });
+      if (allInRef.current) {
+        allInRef.current.click();
+      }
     } else {
       console.log("Unrecognized action:", action);
     }
@@ -532,6 +400,7 @@ export default function DealerView({ gameId }: DealerViewProps) {
                   disabled={actionsDisabled}
                   onClick={handleManualFold}
                   variant="secondary"
+                  ref={foldRef}
                 >
                   Fold
                 </Button>
@@ -539,6 +408,7 @@ export default function DealerView({ gameId }: DealerViewProps) {
                   <Button
                     disabled={actionsDisabled}
                     onClick={handleManualCheck}
+                    ref={checkRef}
                   >
                     Check
                   </Button>
@@ -549,6 +419,7 @@ export default function DealerView({ gameId }: DealerViewProps) {
                       getCallAmount() > (currentPlayer?.chips || 0) ||
                       actionsDisabled
                     }
+                    ref={callRef}
                   >
                     Call ({getCallAmount()})
                   </Button>
@@ -573,12 +444,14 @@ export default function DealerView({ gameId }: DealerViewProps) {
                       (currentPlayer?.chips || 0) ||
                     actionsDisabled
                   }
+                  ref={raiseRef}
                 >
                   Raise
                 </Button>
                 <Button
                   onClick={handleManualAllIn}
                   disabled={(currentPlayer?.chips || 0) <= 0 || actionsDisabled}
+                  ref={allInRef}
                   className="bg-red-600 hover:bg-red-700"
                 >
                   All In
