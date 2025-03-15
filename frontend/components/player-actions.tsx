@@ -24,7 +24,6 @@ export default function PlayerActions({
   pot = 0,
   isPlayerTurn = false,
 }: PlayerActionsProps) {
-  const [errorMsg, setErrorMsg] = useState<string>("");
   const [raiseDialogOpen, setRaiseDialogOpen] = useState(false);
 
   // Calculate call amount as difference between current table bet and what the player has already contributed
@@ -79,14 +78,11 @@ export default function PlayerActions({
     if (!isPlayerTurn) return;
 
     if (amount <= 0) {
-      setErrorMsg("Raise amount must be positive.");
       return;
     }
     if (amount + callAmount > player.chips) {
-      setErrorMsg("You cannot raise more than your available chips.");
       return;
     }
-    setErrorMsg("");
 
     sendGameAction(gameId, {
       playerId: player.id,
