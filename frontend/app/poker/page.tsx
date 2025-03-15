@@ -35,7 +35,7 @@ export default function StartPage() {
         Back
       </Button>
 
-      <div className="w-full max-w-md " >
+      <div className="w-full max-w-md ">
         <div className="max-w-md w-full">
           <h1 className="text-3xl font-bold text-center mb-6" id="page-heading">
             Ready to play? 🃏
@@ -49,7 +49,6 @@ export default function StartPage() {
               onClick={() => handleRoleSelect("PLAYER")}
               className="group block w-full py-3 bg-gray-100 text-black font-bold rounded-lg shadow-md hover:bg-yellow-500 transition duration-300 text-center relative overflow-hidden cursor-pointer"
               aria-label="Join a game as a player"
-              
             >
               <div className="relative w-full inline-flex justify-center items-center">
                 <span className="inline-block mr-0 group-hover:mr-2 transition-all duration-300 align-middle">
