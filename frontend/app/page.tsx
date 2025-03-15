@@ -1,12 +1,13 @@
 "use client";
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import Link from "next/link";
 import { DotLottiePlayer } from "@dotlottie/react-player";
 import "@dotlottie/react-player/dist/index.css";
+import { useRouter } from "next/navigation";
 
 export default function Home() {
   const [mounted, setMounted] = useState(false);
+  const router = useRouter();
 
   // Prevent hydration errors with animations
   useEffect(() => {
@@ -19,15 +20,14 @@ export default function Home() {
     <main className="flex min-h-screen flex-col items-center justify-start pt-16 md:pt-24 lg:justify-center relative overflow-hidden px-4">
       {/* Play Now Button */}
       <div className="absolute top-5 right-5 z-10">
-        <Link href="/pick-game">
-          <motion.button
-            className="bg-yellow-300 hover:bg-yellow-400 text-black font-bold py-2 px-4 md:py-3 md:px-6 rounded-full shadow-lg text-sm md:text-base"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            Play Now
-          </motion.button>
-        </Link>
+        <motion.button
+          onClick={() => router.push("/pick-game")}
+          className="bg-yellow-300 hover:bg-yellow-400 text-black font-bold py-2 px-4 md:py-3 md:px-6 rounded-full shadow-lg text-sm md:text-base"
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+        >
+          Play Now
+        </motion.button>
       </div>
 
       {/* Main Content */}
