@@ -16,9 +16,15 @@ export default function StartPage() {
     });
 
     if (role === "PLAYER") {
+      // player details page
       router.push("/pick-game/start/player");
     } else {
-      router.push("/pick-game/start/dealer");
+      // dealer -> waiting room
+      const mockGameCode = Math.random()
+        .toString(36)
+        .substring(2, 8)
+        .toUpperCase();
+      router.push(`/pick-game/waiting/${mockGameCode}`);
     }
   };
 
