@@ -158,9 +158,10 @@ export default function PlayerView({ gameId }: PlayerViewProps) {
   useEffect(() => {
     if (!screenReaderEnabled || !gameRoom) return;
     
-    // Reset flop announcement flag when a new hand starts
+    // Reset flop announcement flag and community cards count when a new hand starts
     if (prevGameState === "ENDED" && gameRoom.gameState === "PREFLOP") {
       setAnnouncedFlop(false);
+      setPrevCommunityCardsCount(0); // Reset community cards count here
     }
     
     // Handle flop announcement

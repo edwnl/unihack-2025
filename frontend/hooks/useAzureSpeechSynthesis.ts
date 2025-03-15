@@ -2,10 +2,9 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
-import * as SpeechSDK from "microsoft-cognitiveservices-speech-sdk";
 
 /**
- * Return type for our Azure speech synthesis hook.
+ * Return type for our speech synthesis hook.
  */
 export type UseAzureSpeechSynthesisReturn = {
   isSpeaking: boolean;
@@ -14,141 +13,109 @@ export type UseAzureSpeechSynthesisReturn = {
 };
 
 /**
- * Custom hook that uses Microsoft Cognitive Services Speech SDK for text-to-speech.
+ * Custom hook that uses the Web Speech API for text-to-speech.
  * Implements a proper queue system to ensure announcements play sequentially.
  */
 export function useAzureSpeechSynthesis(): UseAzureSpeechSynthesisReturn {
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const synthesizerRef = useRef<SpeechSDK.SpeechSynthesizer | null>(null);
-  const queueRef = useRef<string[]>([]);
-  const isProcessingRef = useRef<boolean>(false);
+  // Queue to hold pending utterances
+  const speechQueue = useRef<SpeechSynthesisUtterance[]>([]);
+  // Flag to check if an utterance is currently being processed
+  const isProcessing = useRef(false);
 
-  // Read subscription details from environment variables
-  const subscriptionKey = process.env.NEXT_PUBLIC_AZURE_SPEECH_KEY || "";
-  const serviceRegion = process.env.NEXT_PUBLIC_AZURE_SPEECH_REGION || "australiaeast";
-
-  // Function to speak a single text item
-  const speakText = useCallback(async (text: string): Promise<void> => {
-    if (!text || !subscriptionKey || !serviceRegion) return Promise.resolve();
-
-    console.log("[AzureSpeech] Speaking:", text);
-    setIsSpeaking(true);
-
-    try {
-      // Configure the Azure Speech SDK
-      const speechConfig = SpeechSDK.SpeechConfig.fromSubscription(subscriptionKey, serviceRegion);
-      speechConfig.speechSynthesisLanguage = "en-US";
-      speechConfig.speechSynthesisVoiceName = "en-US-JennyNeural"; // Use a modern, clear voice
-
-      // Create the synthesizer
-      const audioConfig = SpeechSDK.AudioConfig.fromDefaultSpeakerOutput();
-      const synthesizer = new SpeechSDK.SpeechSynthesizer(speechConfig, audioConfig);
-      synthesizerRef.current = synthesizer;
-
-      return new Promise<void>((resolve, reject) => {
-        synthesizer.speakTextAsync(
-          text,
-          (result) => {
-            if (result.reason === SpeechSDK.ResultReason.SynthesizingAudioCompleted) {
-              console.log("[AzureSpeech] Speech synthesis completed successfully.");
-              synthesizer.close();
-              synthesizerRef.current = null;
-              resolve();
-            } else {
-              const cancellationDetails = SpeechSDK.CancellationDetails.fromResult(result);
-              console.error("[AzureSpeech] Speech synthesis canceled:", cancellationDetails.errorDetails);
-              synthesizer.close();
-              synthesizerRef.current = null;
-              reject(new Error(cancellationDetails.errorDetails));
-            }
-          },
-          (error) => {
-            console.error("[AzureSpeech] Speech synthesis error:", error);
-            synthesizer.close();
-            synthesizerRef.current = null;
-            reject(error);
-          }
-        );
-      });
-    } catch (error) {
-      console.error("[AzureSpeech] Error during speech synthesis:", error);
-      return Promise.reject(error);
-    }
-  }, [subscriptionKey, serviceRegion]);
-
-  // Process the next item in the queue
-  const processQueue = useCallback(async () => {
-    // If already processing or no items in queue, exit
-    if (isProcessingRef.current || queueRef.current.length === 0) {
+  // Process the next utterance in the queue
+  const processQueue = useCallback(() => {
+    if (speechQueue.current.length === 0) {
+      isProcessing.current = false;
       setIsSpeaking(false);
       return;
     }
-
-    // Mark as processing
-    isProcessingRef.current = true;
     
+    isProcessing.current = true;
+    setIsSpeaking(true);
+    const utterance = speechQueue.current.shift()!;
+    
+    // When the utterance finishes (or errors), process the next one
+    utterance.onend = () => {
+      console.log("[SpeechSynthesis] Utterance ended");
+      setTimeout(() => processQueue(), 300); // Small delay between phrases
+    };
+    
+    utterance.onerror = (event) => {
+      console.error("[SpeechSynthesis] Error:", event);
+      setTimeout(() => processQueue(), 300);
+    };
+    
+    // Configure the utterance
+    utterance.rate = 1.3; // Slightly slower for better clarity
+    utterance.pitch = 1.0; // Normal pitch
+    utterance.volume = 1.0; // Full volume
+    
+    // Try to set a female voice if available
+    const setVoice = () => {
+      const voices = window.speechSynthesis.getVoices();
+      // Look for a US English female voice
+      const femaleVoice = voices.find(voice => 
+        (voice.lang === 'en-US' && voice.name.toLowerCase().includes('female')) || 
+        (voice.lang === 'en-GB' && voice.name.toLowerCase().includes('female'))
+      );
+      
+      // Fallback to any English voice if no female voice found
+      const anyEnglishVoice = voices.find(voice => 
+        voice.lang === 'en-US' || voice.lang === 'en-GB'
+      );
+      
+      if (femaleVoice) {
+        utterance.voice = femaleVoice;
+        console.log("[SpeechSynthesis] Using female voice:", femaleVoice.name);
+      } else if (anyEnglishVoice) {
+        utterance.voice = anyEnglishVoice;
+        console.log("[SpeechSynthesis] Using voice:", anyEnglishVoice.name);
+      }
+    };
+    
+    // Try to set the voice
     try {
-      // Get the next text to speak (but don't remove it yet)
-      const nextText = queueRef.current[0];
-      
-      // Speak the text
-      await speakText(nextText);
-      
-      // Remove the text from the queue only after it's been spoken
-      queueRef.current.shift();
-      
+      // In some browsers, getVoices might not be loaded yet
+      const voices = window.speechSynthesis.getVoices();
+      if (voices.length) {
+        setVoice();
+      } else {
+        // If voices aren't loaded yet, try again when they are
+        window.speechSynthesis.onvoiceschanged = setVoice;
+      }
     } catch (error) {
-      console.error("[AzureSpeech] Error processing queue item:", error);
-    } finally {
-      // Mark as not processing anymore
-      isProcessingRef.current = false;
-      
-      // Small delay before processing next item
-      setTimeout(() => {
-        // Process the next item if any
-        if (queueRef.current.length > 0) {
-          processQueue();
-        } else {
-          setIsSpeaking(false);
-        }
-      }, 300);
+      console.warn("[SpeechSynthesis] Error setting voice:", error);
     }
-  }, [speakText]);
+    
+    console.log("[SpeechSynthesis] Speaking:", utterance.text);
+    window.speechSynthesis.speak(utterance);
+  }, []);
 
-  /**
-   * Add text to the speech queue and start processing if not already processing
-   */
+  // Adds an utterance to the queue and starts processing if idle
   const speak = useCallback((text: string): void => {
     if (!text) {
-      console.log("[AzureSpeech] No text provided, skipping speech synthesis.");
+      console.log("[SpeechSynthesis] No text provided, skipping speech synthesis.");
       return;
     }
 
-    if (!subscriptionKey || !serviceRegion) {
-      console.error("[AzureSpeech] Subscription key or service region is missing.");
-      return;
-    }
-
-    console.log("[AzureSpeech] Adding to queue:", text);
-
-    // Add the text to the queue
-    queueRef.current.push(text);
+    console.log("[SpeechSynthesis] Adding to queue:", text);
     
-    // If not already processing, start processing the queue
-    if (!isProcessingRef.current) {
+    const utterance = new SpeechSynthesisUtterance(text);
+    speechQueue.current.push(utterance);
+    setIsSpeaking(true);
+    
+    if (!isProcessing.current) {
       processQueue();
     }
-  }, [processQueue, subscriptionKey, serviceRegion]);
+  }, [processQueue]);
 
+  // Cancel current speech and clear the queue
   const stopSpeaking = useCallback(() => {
-    if (synthesizerRef.current) {
-      synthesizerRef.current.close();
-      synthesizerRef.current = null;
-    }
-    
-    // Clear the queue
-    queueRef.current = [];
-    isProcessingRef.current = false;
+    console.log("[SpeechSynthesis] Stopping speech");
+    window.speechSynthesis.cancel();
+    speechQueue.current = [];
+    isProcessing.current = false;
     setIsSpeaking(false);
   }, []);
 
