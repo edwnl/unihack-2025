@@ -33,28 +33,28 @@ export default function PlayerJoinPage() {
     }
     setLoading(true);
     setError(null);
-
+  
     try {
       const response = await fetch(`${backendUrl}/api/game/player/join`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, gameCode, online, visuallyImpaired }),
       });
-
+  
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(errorText || "Failed to join game");
       }
-
+  
       const player = await response.json();
-
+  
       // Store screenReader flag along with the player role info.
       setUserRole({
         role: "PLAYER",
         playerId: player.id,
-        screenReader, 
+        screenReader,
       });
-
+  
       // Get room details and store in game context.
       const roomResponse = await fetch(`${backendUrl}/api/game/${gameCode}`);
       if (roomResponse.ok) {

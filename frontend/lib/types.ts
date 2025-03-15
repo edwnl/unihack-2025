@@ -1,3 +1,4 @@
+// frontend/lib/types.ts
 // generate types to use for frontend
 export type CardType = {
   suit: string;
@@ -57,3 +58,9 @@ export type GameRoomType = {
 };
 
 export type UserRole = "PLAYER" | "DEALER" | "SCANNER";
+
+export interface UserRoleInfo {
+  role: UserRole | null;
+  playerId?: string;
+  screenReader?: boolean;
+}

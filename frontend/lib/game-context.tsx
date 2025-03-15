@@ -2,31 +2,20 @@
 "use client";
 
 import React, { createContext, useState, useContext, ReactNode } from "react";
-import { GameRoomType, UserRole } from "./types";
+import { GameRoomType, UserRoleInfo } from "./types";
 
 type GameContextType = {
   gameRoom: GameRoomType | null;
   setGameRoom: React.Dispatch<React.SetStateAction<GameRoomType | null>>;
-  userRole: {
-    role: UserRole | null;
-    playerId?: string;
-  } | null;
-  setUserRole: React.Dispatch<
-    React.SetStateAction<{
-      role: UserRole | null;
-      playerId?: string;
-    } | null>
-  >;
+  userRole: UserRoleInfo | null;
+  setUserRole: React.Dispatch<React.SetStateAction<UserRoleInfo | null>>;
 };
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
 
 export const GameProvider = ({ children }: { children: ReactNode }) => {
   const [gameRoom, setGameRoom] = useState<GameRoomType | null>(null);
-  const [userRole, setUserRole] = useState<{
-    role: UserRole | null;
-    playerId?: string;
-  } | null>(null);
+  const [userRole, setUserRole] = useState<UserRoleInfo | null>(null);
 
   return (
     <GameContext.Provider
