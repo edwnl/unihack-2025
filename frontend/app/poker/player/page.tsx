@@ -33,28 +33,28 @@ export default function PlayerJoinPage() {
     }
     setLoading(true);
     setError(null);
-  
+
     try {
       const response = await fetch(`${backendUrl}/api/game/player/join`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, gameCode, online, visuallyImpaired }),
       });
-  
+
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(errorText || "Failed to join game");
       }
-  
+
       const player = await response.json();
-  
+
       // Store screenReader flag along with the player role info.
       setUserRole({
         role: "PLAYER",
         playerId: player.id,
         screenReader,
       });
-  
+
       // Get room details and store in game context.
       const roomResponse = await fetch(`${backendUrl}/api/game/${gameCode}`);
       if (roomResponse.ok) {
@@ -111,11 +111,18 @@ export default function PlayerJoinPage() {
                 <label htmlFor="online" className="block text-sm font-medium">
                   Joining Online
                 </label>
-                <Switch id="online" checked={online} onCheckedChange={setOnline} />
+                <Switch
+                  id="online"
+                  checked={online}
+                  onCheckedChange={setOnline}
+                />
               </div>
 
               <div className="flex items-center justify-between">
-                <label htmlFor="visuallyImpaired" className="block text-sm font-medium">
+                <label
+                  htmlFor="visuallyImpaired"
+                  className="block text-sm font-medium"
+                >
                   Visually Impaired
                 </label>
                 <Switch
@@ -126,7 +133,10 @@ export default function PlayerJoinPage() {
               </div>
 
               <div className="flex items-center justify-between">
-                <label htmlFor="screenReader" className="block text-sm font-medium">
+                <label
+                  htmlFor="screenReader"
+                  className="block text-sm font-medium"
+                >
                   Screen Reader
                 </label>
                 <Switch
@@ -136,14 +146,22 @@ export default function PlayerJoinPage() {
                 />
               </div>
 
-              <Button onClick={handlePlayerJoin} disabled={loading} className="w-full">
+              <Button
+                onClick={handlePlayerJoin}
+                disabled={loading}
+                className="w-full"
+              >
                 {loading ? "Joining..." : "Join Game"}
               </Button>
             </div>
 
             {error && <p className="text-red-500 mt-4 text-center">{error}</p>}
 
-            <Button variant="ghost" className="w-full mt-4" onClick={() => router.push("/poker")}>
+            <Button
+              variant="ghost"
+              className="w-full mt-4"
+              onClick={() => router.push("/poker")}
+            >
               Back
             </Button>
           </CardContent>

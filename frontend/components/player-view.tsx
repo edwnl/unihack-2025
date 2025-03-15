@@ -1,8 +1,7 @@
 // frontend/components/player-view.tsx
 "use client";
 
-import { useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useEffect, useState, useRef } from "react";
 import { useGameContext } from "@/lib/game-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import PlayerHand from "@/components/player-hand";
@@ -11,7 +10,52 @@ import PlayerActions from "@/components/player-actions";
 import AIAdvisor from "@/components/ai-advisor";
 import { getPokerPosition } from "@/lib/utils";
 import { useAzureSpeechSynthesis } from "@/hooks/useAzureSpeechSynthesis";
-import { useState, useRef } from "react";
+
+// --- Local type definitions ---
+// (If you have shared types in "@/lib/types", consider importing them.)
+export interface CardType {
+  rank: string; // now required
+  suit: string; // now required
+}
+
+export interface Player {
+  id: string;
+  name: string;
+  visuallyImpaired: boolean;
+  chips: number;
+  active: boolean;
+  hand?: { cards: CardType[] };
+  online?: boolean; // raw data might be missing these
+  folded?: boolean;
+  handRanking?: string;
+}
+
+export interface GameAction {
+  type: string;
+  playerId?: string; // may be missing
+  timestamp?: string | number; // allow undefined
+  amount?: number;
+}
+
+export interface GameRoom {
+  players: Player[];
+  actions?: GameAction[];
+  currentPlayerIndex: number;
+  waitingForCards: boolean;
+  communityCards?: CardType[];
+  currentBet?: number;
+  bets?: { [playerId: string]: number };
+  pot?: number;
+  gameState: string;
+  winnerIds?: string[];
+  smallBlindPosition?: number;
+}
+
+// For convenience, assume the PlayerHand component expects a PlayerType
+// where online and folded are required booleans.
+export type PlayerType = Required<Omit<Player, "hand">> & {
+  hand?: { cards: CardType[] };
+};
 
 interface PlayerViewProps {
   gameId: string;
@@ -20,158 +64,106 @@ interface PlayerViewProps {
 export default function PlayerView({ gameId }: PlayerViewProps) {
   console.log("Rendering PlayerView");
   const { gameRoom, userRole } = useGameContext();
-  const { speak, stopSpeaking } = useAzureSpeechSynthesis();
-  
-  // Track previous community cards count to detect new ones
-  const [prevCommunityCardsCount, setPrevCommunityCardsCount] = useState<number>(0);
-  // Track previous game state to detect changes
-  const [prevGameState, setPrevGameState] = useState<string | undefined>(undefined);
-  
-  // Use ref to track if we've announced the hand already for the current game
+  const { speak } = useAzureSpeechSynthesis();
+
+  const [prevCommunityCardsCount, setPrevCommunityCardsCount] =
+    useState<number>(0);
+  const [prevGameState, setPrevGameState] = useState<string | undefined>(
+    undefined,
+  );
   const announcedHandRef = useRef<boolean>(false);
-  // Track current hand by its content (as a string) to detect when it changes
   const [currentHandString, setCurrentHandString] = useState<string>("");
-  // Track announced actions by IDs
-  const [announcedActionIds, setAnnouncedActionIds] = useState<Set<string>>(new Set());
-  // Track if we've announced the winner already for current round
+  const [announcedActionIds, setAnnouncedActionIds] = useState<Set<string>>(
+    new Set(),
+  );
   const [announcedWinner, setAnnouncedWinner] = useState<boolean>(false);
-  // Track flop announcement for current hand
   const [announcedFlop, setAnnouncedFlop] = useState<boolean>(false);
 
-  if (!gameRoom) return <p>Loading player view...</p>;
-  if (!userRole?.playerId) return <p>Error: Player ID not found</p>;
+  // Determine if we're loading required data.
+  const loading = !gameRoom || !userRole?.playerId;
+  const currentPlayer =
+    !loading && gameRoom!.players
+      ? (gameRoom!.players.find((p: Player) => p.id === userRole!.playerId) ??
+        null)
+      : null;
 
-  // Find current player by ID
-  const currentPlayer = gameRoom.players.find(
-    (p) => p.id === userRole.playerId,
-  );
+  const screenReaderEnabled = userRole?.screenReader === true;
 
-  if (!currentPlayer) {
-    return <p>Error: Could not find your player information</p>;
-  }
-
-  // Check if it's current player's turn
+  // Compute isPlayerTurn as a boolean.
   const isPlayerTurn =
-    !gameRoom.waitingForCards &&
-    gameRoom.currentPlayerIndex >= 0 &&
-    gameRoom.players.length > gameRoom.currentPlayerIndex &&
-    gameRoom.players[gameRoom.currentPlayerIndex].id === currentPlayer.id;
+    !loading && currentPlayer
+      ? gameRoom!.players[gameRoom!.currentPlayerIndex]!.id ===
+          currentPlayer!.id && !gameRoom!.waitingForCards
+      : false;
 
-  // Get states needed for betting
-  const currentBet = gameRoom.currentBet || 0;
-  const playerBet = gameRoom.bets ? gameRoom.bets[currentPlayer.id] || 0 : 0;
-  const pot = gameRoom.pot || 0;
+  const currentBet = gameRoom ? gameRoom.currentBet || 0 : 0;
+  const playerBet =
+    gameRoom && currentPlayer && gameRoom.bets
+      ? gameRoom.bets[currentPlayer.id] || 0
+      : 0;
+  const pot = gameRoom ? gameRoom.pot || 0 : 0;
 
-  // Get game state information
-  const isGameActive = ["PREFLOP", "FLOP", "TURN", "RIVER"].includes(
-    gameRoom.gameState,
-  );
+  const isGameActive = gameRoom
+    ? ["PREFLOP", "FLOP", "TURN", "RIVER"].includes(gameRoom.gameState)
+    : false;
 
-  // Check if screen reader is enabled
-  const screenReaderEnabled = userRole.screenReader === true;
-
-  // Helper function to format a card for speech
-  function formatCardForSpeech(card: any): string {
+  // Helper: format a card for speech.
+  function formatCardForSpeech(card: CardType | null | undefined): string {
     if (!card) return "unknown card";
-    
-    let rank = "";
-    switch (card.rank) {
-      case "ACE": rank = "Ace"; break;
-      case "KING": rank = "King"; break;
-      case "QUEEN": rank = "Queen"; break;
-      case "JACK": rank = "Jack"; break;
-      case "TEN": rank = "Ten"; break;
-      case "NINE": rank = "Nine"; break;
-      case "EIGHT": rank = "Eight"; break;
-      case "SEVEN": rank = "Seven"; break;
-      case "SIX": rank = "Six"; break;
-      case "FIVE": rank = "Five"; break;
-      case "FOUR": rank = "Four"; break;
-      case "THREE": rank = "Three"; break;
-      case "TWO": rank = "Two"; break;
-      default: rank = card.rank;
-    }
-    
-    let suit = "";
-    switch (card.suit) {
-      case "HEARTS": suit = "Hearts"; break;
-      case "DIAMONDS": suit = "Diamonds"; break;
-      case "CLUBS": suit = "Clubs"; break;
-      case "SPADES": suit = "Spades"; break;
-      default: suit = card.suit;
-    }
-    
-    return `${rank} of ${suit}`;
+    return `${card.rank} of ${card.suit}`;
   }
 
-  // Update currentHandString when hand changes
+  // --- Effects ---
   useEffect(() => {
-    if (currentPlayer?.hand?.cards) {
-      // Create a string representation of the hand to track changes
-      const handStr = JSON.stringify(currentPlayer.hand.cards);
-      setCurrentHandString(handStr);
-    } else {
+    if (!currentPlayer || !currentPlayer.hand?.cards) {
       setCurrentHandString("");
+      return;
     }
-  }, [currentPlayer?.hand?.cards]);
-
-  // Effect to announce player's hand when dealt (with protection against multiple announcements)
-  useEffect(() => {
-    if (!screenReaderEnabled || !currentPlayer?.hand?.cards || !gameRoom) return;
-    
-    // Get current hand as string to detect changes
     const handStr = JSON.stringify(currentPlayer.hand.cards);
-    
-    // Only announce if:
-    // 1. We're in preflop
-    // 2. Not waiting for cards
-    // 3. The player has cards
-    // 4. We haven't announced this specific hand before
+    setCurrentHandString(handStr);
+  }, [currentPlayer, currentPlayer?.hand?.cards]);
+
+  useEffect(() => {
+    if (!gameRoom || !currentPlayer || !screenReaderEnabled) return;
+    if (!currentPlayer.hand?.cards) return;
+    const handStr = JSON.stringify(currentPlayer.hand.cards);
     if (
-      currentPlayer.hand.cards.length > 0 && 
-      gameRoom.gameState === "PREFLOP" && 
+      currentPlayer.hand.cards.length > 0 &&
+      gameRoom.gameState === "PREFLOP" &&
       gameRoom.waitingForCards === false &&
-      handStr === currentHandString && // Make sure it's the current hand
-      !announcedHandRef.current // We haven't announced it yet
+      handStr === currentHandString &&
+      !announcedHandRef.current
     ) {
       const card1 = currentPlayer.hand.cards[0];
-      const card2 = currentPlayer.hand.cards.length > 1 ? currentPlayer.hand.cards[1] : null;
-      
-      let announcement = "Your hand is: ";
-      announcement += formatCardForSpeech(card1);
-      
+      const card2 =
+        currentPlayer.hand.cards.length > 1
+          ? currentPlayer.hand.cards[1]
+          : null;
+      let announcement = "Your hand is: " + formatCardForSpeech(card1);
       if (card2) {
         announcement += " and " + formatCardForSpeech(card2);
       }
-      
       speak(announcement);
-      announcedHandRef.current = true; // Mark as announced
+      announcedHandRef.current = true;
     }
-    
-    // Reset announcement flag when game state changes
     if (gameRoom.gameState !== "PREFLOP") {
       announcedHandRef.current = false;
     }
-  }, [currentHandString, gameRoom?.gameState, gameRoom?.waitingForCards, screenReaderEnabled, speak, currentPlayer?.hand?.cards]);
+  }, [currentHandString, gameRoom, screenReaderEnabled, speak, currentPlayer]);
 
-  // Effect to announce community cards when dealt
   useEffect(() => {
-    if (!screenReaderEnabled || !gameRoom) return;
-    
-    // When community cards are cleared (likely indicating a new hand), reset the flags and count
+    if (!gameRoom || !screenReaderEnabled) return;
     if (!gameRoom.communityCards || gameRoom.communityCards.length === 0) {
       if (prevCommunityCardsCount !== 0 || announcedFlop) {
         setAnnouncedFlop(false);
         setPrevCommunityCardsCount(0);
       }
     }
-    
-    // Handle flop announcement
     if (
-      gameRoom.gameState === "FLOP" && 
-      !gameRoom.waitingForCards && 
-      gameRoom.communityCards && 
-      gameRoom.communityCards.length === 3 && 
+      gameRoom.gameState === "FLOP" &&
+      !gameRoom.waitingForCards &&
+      gameRoom.communityCards &&
+      gameRoom.communityCards.length === 3 &&
       !announcedFlop
     ) {
       let announcement = "Flop is: ";
@@ -183,82 +175,67 @@ export default function PlayerView({ gameId }: PlayerViewProps) {
       setAnnouncedFlop(true);
       setPrevCommunityCardsCount(3);
     }
-    
-    // Handle Turn card announcement
     if (
-      gameRoom.gameState === "TURN" && 
-      !gameRoom.waitingForCards && 
-      gameRoom.communityCards && 
-      gameRoom.communityCards.length === 4 && 
+      gameRoom.gameState === "TURN" &&
+      !gameRoom.waitingForCards &&
+      gameRoom.communityCards &&
+      gameRoom.communityCards.length === 4 &&
       prevCommunityCardsCount === 3
     ) {
-      const turnAnnouncement = "Turn is: " + formatCardForSpeech(gameRoom.communityCards[3]);
+      const turnAnnouncement =
+        "Turn is: " + formatCardForSpeech(gameRoom.communityCards[3]);
       speak(turnAnnouncement);
       setPrevCommunityCardsCount(4);
     }
-    
-    // Handle River card announcement
     if (
-      gameRoom.gameState === "RIVER" && 
-      !gameRoom.waitingForCards && 
-      gameRoom.communityCards && 
-      gameRoom.communityCards.length === 5 && 
+      gameRoom.gameState === "RIVER" &&
+      !gameRoom.waitingForCards &&
+      gameRoom.communityCards &&
+      gameRoom.communityCards.length === 5 &&
       prevCommunityCardsCount === 4
     ) {
-      const riverAnnouncement = "River is: " + formatCardForSpeech(gameRoom.communityCards[4]);
+      const riverAnnouncement =
+        "River is: " + formatCardForSpeech(gameRoom.communityCards[4]);
       speak(riverAnnouncement);
       setPrevCommunityCardsCount(5);
     }
-    
-    // Update previous game state
     setPrevGameState(gameRoom.gameState);
   }, [
-    gameRoom?.gameState, 
-    gameRoom?.waitingForCards, 
-    gameRoom?.communityCards, 
-    prevCommunityCardsCount, 
-    prevGameState, 
+    gameRoom,
+    prevCommunityCardsCount,
+    screenReaderEnabled,
+    speak,
     announcedFlop,
-    screenReaderEnabled, 
-    speak
   ]);
 
-  // Effect to announce player actions
   useEffect(() => {
-    if (!screenReaderEnabled || !gameRoom?.actions) return;
-    
-    // Collect all new actions that haven't been announced yet
-    const newActions = gameRoom.actions.filter(action => {
-      // Create a unique ID for each action based on its properties
+    if (!gameRoom || !screenReaderEnabled) return;
+    const actions = (gameRoom.actions ?? []) as GameAction[];
+    const newActions = actions.filter((action) => {
+      if (action.timestamp === undefined || action.playerId === undefined)
+        return false;
       const actionId = `${action.type}-${action.playerId}-${action.timestamp}`;
-      return !announcedActionIds.has(actionId) && 
-             action.type !== "LOG" && 
-             action.type !== "SCAN_CARD" &&
-             action.playerId; // Make sure playerId exists
+      return (
+        !announcedActionIds.has(actionId) &&
+        action.type !== "LOG" &&
+        action.type !== "SCAN_CARD"
+      );
     });
-    
     if (newActions.length > 0) {
-      // Create a new Set with all previously announced actions plus the new ones
       const updatedAnnouncedActions = new Set(announcedActionIds);
-      
-      // Process each new action
-      newActions.forEach(action => {
-        // Find the player position
-        const playerIndex = gameRoom.players.findIndex(p => p.id === action.playerId);
-        
+      newActions.forEach((action) => {
+        const playerIndex = gameRoom!.players.findIndex(
+          (p: Player) => p.id === action.playerId,
+        );
         if (playerIndex >= 0) {
           const position = getPokerPosition(
             playerIndex,
-            gameRoom.players.length,
-            gameRoom.smallBlindPosition
+            gameRoom!.players.length,
+            gameRoom!.smallBlindPosition!,
           );
-          
-          const isCurrentPlayer = action.playerId === userRole.playerId;
+          const isCurrentPlayer = action.playerId === userRole?.playerId;
           const playerPrefix = isCurrentPlayer ? "You" : position;
-          
-          // Format the action
           let actionText = "";
-          
           switch (action.type) {
             case "FOLD":
               actionText = "fold";
@@ -284,101 +261,87 @@ export default function PlayerView({ gameId }: PlayerViewProps) {
             default:
               actionText = action.type.toLowerCase();
           }
-          
-          // Announce the action
           speak(`${playerPrefix} ${actionText}`);
-          
-          // Add this action to the announced set
           const actionId = `${action.type}-${action.playerId}-${action.timestamp}`;
           updatedAnnouncedActions.add(actionId);
         }
       });
-      
-      // Update the state with all newly announced actions
       setAnnouncedActionIds(updatedAnnouncedActions);
     }
-  }, [gameRoom?.actions, screenReaderEnabled, userRole.playerId, speak, gameRoom?.players, gameRoom?.smallBlindPosition]);
+  }, [gameRoom, screenReaderEnabled, userRole, speak, announcedActionIds]);
 
-  // Effect to announce game state changes (showdown/winner)
   useEffect(() => {
-    if (!screenReaderEnabled || !gameRoom) return;
-    
-    // Detect change to SHOWDOWN state
-    if (
-      gameRoom.gameState === "SHOWDOWN" && 
-      prevGameState !== "SHOWDOWN"
-    ) {
-      // Gather active players' hands info
-      const activePlayers = gameRoom.players.filter(p => !p.folded);
-      
+    if (!gameRoom || !screenReaderEnabled) return;
+    if (gameRoom.gameState === "SHOWDOWN" && prevGameState !== "SHOWDOWN") {
+      const activePlayers = gameRoom.players.filter((p: Player) => !p.folded);
       if (activePlayers.length > 1) {
         let showdownAnnouncement = "Showdown: ";
-        
-        activePlayers.forEach((player, idx) => {
+        activePlayers.forEach((player: Player, idx: number) => {
           const position = getPokerPosition(
-            gameRoom.players.findIndex(p => p.id === player.id),
-            gameRoom.players.length,
-            gameRoom.smallBlindPosition
+            gameRoom!.players.findIndex((p: Player) => p.id === player.id),
+            gameRoom!.players.length,
+            gameRoom!.smallBlindPosition!,
           );
-          
-          // Add player's hand if available
           if (player.handRanking) {
             showdownAnnouncement += `${position} has ${player.handRanking}`;
-            
             if (idx < activePlayers.length - 1) {
               showdownAnnouncement += ", ";
             }
           }
         });
-        
         speak(showdownAnnouncement);
       }
     }
-    
-    // Reset announced winner flag when game state changes from SHOWDOWN/ENDED to PREFLOP
-    if ((prevGameState === "SHOWDOWN" || prevGameState === "ENDED") && gameRoom.gameState === "PREFLOP") {
+    if (
+      (prevGameState === "SHOWDOWN" || prevGameState === "ENDED") &&
+      gameRoom.gameState === "PREFLOP"
+    ) {
       setAnnouncedWinner(false);
     }
-    
-    // Announce winner only once per hand
-    if ((gameRoom.gameState === "SHOWDOWN" || gameRoom.gameState === "ENDED") && 
-        gameRoom.winnerIds && 
-        gameRoom.winnerIds.length > 0 && 
-        !announcedWinner) {
-      
-      const winners = gameRoom.players.filter(p => 
-        gameRoom.winnerIds?.includes(p.id)
+    if (
+      (gameRoom.gameState === "SHOWDOWN" || gameRoom.gameState === "ENDED") &&
+      gameRoom.winnerIds &&
+      gameRoom.winnerIds.length > 0 &&
+      !announcedWinner
+    ) {
+      const winners = gameRoom.players.filter((p: Player) =>
+        gameRoom.winnerIds!.includes(p.id),
       );
-      
       if (winners.length > 0) {
-        let winnerAnnouncement = winners.length === 1 ? "Winner is " : "Winners are ";
-        
-        winners.forEach((winner, idx) => {
+        let winnerAnnouncement =
+          winners.length === 1 ? "Winner is " : "Winners are ";
+        winners.forEach((winner: Player, idx: number) => {
           const position = getPokerPosition(
-            gameRoom.players.findIndex(p => p.id === winner.id),
-            gameRoom.players.length,
-            gameRoom.smallBlindPosition
+            gameRoom!.players.findIndex((p: Player) => p.id === winner.id),
+            gameRoom!.players.length,
+            gameRoom!.smallBlindPosition!,
           );
-          
           winnerAnnouncement += position;
-          
           if (winner.handRanking) {
             winnerAnnouncement += ` with ${winner.handRanking}`;
           }
-          
           if (idx < winners.length - 1) {
             winnerAnnouncement += ", ";
           }
         });
-        
         speak(winnerAnnouncement);
-        setAnnouncedWinner(true); // Mark as announced
+        setAnnouncedWinner(true);
       }
     }
-    
-    // Update previous game state
     setPrevGameState(gameRoom.gameState);
-  }, [gameRoom?.gameState, gameRoom?.winnerIds, prevGameState, screenReaderEnabled, speak, gameRoom?.players, gameRoom?.smallBlindPosition, announcedWinner]);
+  }, [gameRoom, prevGameState, screenReaderEnabled, speak, announcedWinner]);
+
+  // --- Render ---
+  if (loading) {
+    return (
+      <p>
+        {!gameRoom ? "Loading player view..." : "Error: Player ID not found"}
+      </p>
+    );
+  }
+  if (!currentPlayer) {
+    return <p>Error: Could not find your player information</p>;
+  }
 
   return (
     <div className="w-full max-w-4xl">
@@ -392,25 +355,29 @@ export default function PlayerView({ gameId }: PlayerViewProps) {
           <div className="flex flex-col space-y-4">
             {/* Other players */}
             <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 overflow-x-auto whitespace-nowrap">
-              {gameRoom.players.map((player, index) => {
+              {gameRoom.players.map((player: Player, index: number) => {
                 const position = getPokerPosition(
                   index,
                   gameRoom.players.length,
-                  gameRoom.smallBlindPosition,
+                  gameRoom.smallBlindPosition!,
                 );
-
-                // Check if this player is a winner
                 const isWinner =
                   gameRoom.winnerIds && gameRoom.winnerIds.includes(player.id);
-
                 return (
                   <PlayerHand
                     key={player.id}
-                    player={player}
+                    // Provide defaults for online and folded then cast to the expected type.
+                    player={
+                      {
+                        ...player,
+                        online: player.online ?? false,
+                        folded: player.folded ?? false,
+                      } as PlayerType
+                    }
                     isCurrentPlayer={
                       gameRoom.currentPlayerIndex === index &&
                       !gameRoom.waitingForCards &&
-                      gameRoom.gameState != "SHOWDOWN"
+                      gameRoom.gameState !== "SHOWDOWN"
                     }
                     position={position}
                     showCards={
@@ -422,11 +389,9 @@ export default function PlayerView({ gameId }: PlayerViewProps) {
                 );
               })}
             </div>
-
             {/* Community cards */}
             <CommunityCards gameRoom={gameRoom} />
-
-            {/* Player actions - Always rendered but disabled when not player's turn */}
+            {/* Player actions */}
             {currentPlayer.online && isGameActive && (
               <PlayerActions
                 gameId={gameId}
@@ -437,7 +402,6 @@ export default function PlayerView({ gameId }: PlayerViewProps) {
                 isPlayerTurn={isPlayerTurn}
               />
             )}
-
             {/* AI Advisor component */}
             {currentPlayer.online && isGameActive && (
               <AIAdvisor
