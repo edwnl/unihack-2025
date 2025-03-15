@@ -1,15 +1,13 @@
 "use client";
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
+import Link from "next/link";
 import { DotLottiePlayer } from "@dotlottie/react-player";
 import "@dotlottie/react-player/dist/index.css";
-import { useRouter } from "next/navigation";
 
 export default function Home() {
   const [mounted, setMounted] = useState(false);
-  const router = useRouter();
 
-  // Prevent hydration errors with animations
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -17,21 +15,32 @@ export default function Home() {
   if (!mounted) return null;
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-start pt-16 md:pt-24 lg:justify-center relative overflow-hidden px-4">
-      {/* Play Now Button */}
-      <div className="absolute top-5 right-5 z-10">
-        <motion.button
-          onClick={() => router.push("/pick-game")}
-          className="bg-yellow-300 hover:bg-yellow-400 text-black font-bold py-2 px-4 md:py-3 md:px-6 rounded-full shadow-lg text-sm md:text-base"
+    <main className="flex min-h-screen flex-col items-center justify-start relative overflow-hidden px-4">
+      {/* Navigation Area */}
+      <div className="w-full flex justify-between pt-5 sm:pt-6 md:pt-8 mb-10 sm:mb-16 md:mb-24">
+        {/* FAB with Text and Card Symbol */}
+        <motion.div
+          className="bg-white hover:white/80 text-black rounded-full shadow-lg px-4 py-2 flex items-center justify-center cursor-pointer"
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
         >
-          Play Now
-        </motion.button>
+          <span className="font-bold text-base md:text-lg">shuffl 🂡</span>
+        </motion.div>
+
+        {/* Play Now Button */}
+        <Link href="/pick-game">
+          <motion.button
+            className="bg-yellow-300 hover:bg-yellow-400 text-black font-bold py-2 px-4 md:py-3 md:px-6 rounded-full shadow-lg text-sm md:text-base"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            Play Now
+          </motion.button>
+        </Link>
       </div>
 
       {/* Main Content */}
-      <div className="flex flex-col items-center justify-center w-full">
+      <div className="flex flex-col items-center justify-center w-full mt-8 sm:mt-12 md:mt-0">
         {/* Text Section */}
         <div className="max-w-4xl text-center mb-10 md:mb-14">
           <motion.h1
@@ -40,7 +49,7 @@ export default function Home() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2, duration: 0.8 }}
           >
-            Casual poker, <span className="text-yellow-300">redesigned.</span>
+            A new card game <span className="text-yellow-300">experience.</span>
           </motion.h1>
 
           <motion.p
@@ -49,7 +58,7 @@ export default function Home() {
             animate={{ opacity: 1 }}
             transition={{ delay: 0.5, duration: 0.8 }}
           >
-            A new way to enjoy poker with friends, anytime, anywhere.
+            Redefining inclusivity. Highlighting accessibility. Playing smarter.
           </motion.p>
         </div>
 

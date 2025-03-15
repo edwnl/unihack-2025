@@ -44,3 +44,16 @@ services:
       - backend
 
 ```
+
+
+### package.json
+
+```json
+{
+  "dependencies": {
+    "@dotlottie/react-player": "^1.6.19",
+    "framer-motion": "^12.5.0"
+  }
+}
+
+```
