@@ -14,7 +14,6 @@ interface PlayerViewProps {
 }
 
 export default function PlayerView({ gameId }: PlayerViewProps) {
-  console.log("Rendering PlayerView");
   const { gameRoom, userRole } = useGameContext();
 
   if (!gameRoom) return <p>Loading player view...</p>;
