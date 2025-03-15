@@ -10,7 +10,6 @@ import CommunityCards from "@/components/community-cards";
 import PlayerHand from "@/components/player-hand";
 import GameActions from "@/components/game-actions";
 import { getPokerPosition } from "@/lib/utils";
-import { Input } from "./ui/input";
 
 interface DealerViewProps {
   gameId: string;
@@ -19,8 +18,6 @@ interface DealerViewProps {
 export default function DealerView({ gameId }: DealerViewProps) {
   const { gameRoom } = useGameContext();
   const [error, setError] = useState<string | null>(null);
-  const [errorMsg, setErrorMsg] = useState<string>("");
-  const [raiseInput, setRaiseInput] = useState<number>(0);
   const [cardsSeen, setCardsSeen] = useState(new Set<string>());
 
   // Early return if gameRoom is not yet loaded
@@ -29,17 +26,6 @@ export default function DealerView({ gameId }: DealerViewProps) {
   // Detect if the game is finished (SHOWDOWN or ENDED)
   const isGameOver =
     gameRoom.gameState === "SHOWDOWN" || gameRoom.gameState === "ENDED";
-
-  // Determine current player from gameRoom using currentPlayerIndex
-  const currentPlayer = gameRoom.players[gameRoom.currentPlayerIndex];
-  // Recalculate call amount from current player's bet (from gameRoom.bets)
-  const getCallAmount = () => {
-    if (!currentPlayer) return 0;
-    const currentPlayerBet =
-      (gameRoom.bets && gameRoom.bets[currentPlayer.id]) || 0;
-    if (!gameRoom.currentBet) return 0;
-    return gameRoom.currentBet - currentPlayerBet;
-  };
 
   const handleScanCard = () => {
     const suits = ["HEARTS", "DIAMONDS", "CLUBS", "SPADES"];
@@ -94,7 +80,7 @@ export default function DealerView({ gameId }: DealerViewProps) {
       setError((err as Error).message);
     }
   };
-  
+
   return (
     <div className="w-full max-w-4xl">
       <Card className="mb-6">
@@ -165,13 +151,7 @@ export default function DealerView({ gameId }: DealerViewProps) {
                 Start New Hand
               </Button>
             )}
-
             {error && <p className="text-red-500 text-center mt-4">{error}</p>}
-            {errorMsg && (
-              <p className="mt-2 text-sm text-center text-red-500">
-                {errorMsg}
-              </p>
-            )}
           </div>
         </CardContent>
       </Card>
