@@ -1,6 +1,12 @@
 "use client";
 
-import React, { createContext, useState, useContext, ReactNode, useEffect } from "react";
+import React, {
+  createContext,
+  useState,
+  useContext,
+  ReactNode,
+  useEffect,
+} from "react";
 import { GameRoomType, UserRole } from "./types";
 
 type UserRoleState = {
@@ -24,7 +30,7 @@ const GameContext = createContext<GameContextType | undefined>(undefined);
 export const GameProvider = ({ children }: { children: ReactNode }) => {
   const [gameRoom, setGameRoom] = useState<GameRoomType | null>(null);
   const [userRole, setUserRoleState] = useState<UserRoleState>(null);
-  
+
   // Load user role from local storage on initial mount
   useEffect(() => {
     try {

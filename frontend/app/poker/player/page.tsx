@@ -13,7 +13,10 @@ export default function PlayerJoinPage() {
   const { userRole, setUserRole, setGameRoom } = useGameContext();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [reconnectInfo, setReconnectInfo] = useState<{gameId: string, playerId: string} | null>(null);
+  const [reconnectInfo, setReconnectInfo] = useState<{
+    gameId: string;
+    playerId: string;
+  } | null>(null);
 
   // Form state for player
   const [name, setName] = useState(generateRandomName());
@@ -30,7 +33,7 @@ export default function PlayerJoinPage() {
     if (userRole?.role === "PLAYER" && userRole.playerId && userRole.gameId) {
       setReconnectInfo({
         gameId: userRole.gameId,
-        playerId: userRole.playerId
+        playerId: userRole.playerId,
       });
       setGameCode(userRole.gameId);
     }
@@ -38,29 +41,43 @@ export default function PlayerJoinPage() {
 
   const handleReconnect = async () => {
     if (!reconnectInfo) return;
-    
+
     setLoading(true);
     setError(null);
 
     try {
       // First, check if the game still exists
-      const roomResponse = await fetch(`${backendUrl}/api/game/${reconnectInfo.gameId}`);
+      const roomResponse = await fetch(
+        `${backendUrl}/api/game/${reconnectInfo.gameId}`,
+      );
       if (!roomResponse.ok) {
         throw new Error("Game no longer exists. Please join a new game.");
       }
-      
+
       const room = await roomResponse.json();
-      
-      // Check if player still exists in the game
-      const playerExists = room.players.some((p: any) => p.id === reconnectInfo.playerId);
-      
-      if (!playerExists) {
-        throw new Error("Your player is no longer in this game. Please join as a new player.");
+
+      interface Player {
+        id: string;
+        // Add other properties as needed
+        name?: string;
+        isActive?: boolean;
+        // etc.
       }
-      
+
+      // Check if player still exists in the game
+      const playerExists = room.players.some(
+        (p: Player) => p.id === reconnectInfo.playerId,
+      );
+
+      if (!playerExists) {
+        throw new Error(
+          "Your player is no longer in this game. Please join as a new player.",
+        );
+      }
+
       // Set game room state
       setGameRoom(room);
-      
+
       // Navigate to the waiting room or game based on state
       if (room.gameState === "WAITING") {
         router.push(`/poker/waiting/${reconnectInfo.gameId}`);
@@ -102,7 +119,7 @@ export default function PlayerJoinPage() {
       setUserRole({
         role: "PLAYER",
         playerId: player.id,
-        gameId: gameCode
+        gameId: gameCode,
       });
 
       // Get room details
@@ -126,15 +143,18 @@ export default function PlayerJoinPage() {
         {reconnectInfo ? (
           <Card className="w-full mb-4">
             <CardHeader>
-              <CardTitle className="text-center">Rejoin Previous Game</CardTitle>
+              <CardTitle className="text-center">
+                Rejoin Previous Game
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex flex-col space-y-4">
                 <p>
-                  You were previously playing in game: <strong>{reconnectInfo.gameId}</strong>
+                  You were previously playing in game:{" "}
+                  <strong>{reconnectInfo.gameId}</strong>
                 </p>
-                <Button 
-                  onClick={handleReconnect} 
+                <Button
+                  onClick={handleReconnect}
                   disabled={loading}
                   className="w-full"
                 >
@@ -173,7 +193,10 @@ export default function PlayerJoinPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <label htmlFor="gameCode" className="block text-sm font-medium">
+                  <label
+                    htmlFor="gameCode"
+                    className="block text-sm font-medium"
+                  >
                     Game Code
                   </label>
                   <input
@@ -220,7 +243,9 @@ export default function PlayerJoinPage() {
                 </Button>
               </div>
 
-              {error && <p className="text-red-500 mt-4 text-center">{error}</p>}
+              {error && (
+                <p className="text-red-500 mt-4 text-center">{error}</p>
+              )}
 
               <Button
                 variant="ghost"

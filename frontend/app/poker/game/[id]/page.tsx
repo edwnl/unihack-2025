@@ -25,11 +25,11 @@ export default function GamePage() {
     if (userRole && userRole.gameId === gameId && !isReconnecting) {
       setIsReconnecting(true);
       console.log("Attempting to reconnect with stored role:", userRole);
-      
+
       // Update the gameId in case it was changed
       setUserRole({
         ...userRole,
-        gameId: gameId
+        gameId: gameId,
       });
     }
   }, [userRole, gameId, setUserRole, isReconnecting]);
@@ -50,7 +50,7 @@ export default function GamePage() {
   // Connect to WebSocket
   useEffect(() => {
     if (!userRole?.role) return;
-    
+
     connectWebSocket(gameId, (updatedRoom) => {
       setGameRoom(updatedRoom);
 
@@ -68,7 +68,7 @@ export default function GamePage() {
   // Fetch initial game state
   useEffect(() => {
     if (!userRole?.role) return;
-    
+
     const fetchGameRoom = async () => {
       try {
         const response = await fetch(`${backendUrl}/api/game/${gameId}`);
@@ -82,7 +82,7 @@ export default function GamePage() {
         if (data.gameState === "WAITING") {
           router.push(`/waiting/${gameId}`);
         }
-        
+
         // If we were reconnecting, mark it as complete
         if (isReconnecting) {
           setIsReconnecting(false);
