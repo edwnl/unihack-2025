@@ -22,8 +22,6 @@ export default function PlayerView({ gameId }: PlayerViewProps) {
   
   // Track previous community cards to detect new ones
   const [prevCommunityCards, setPrevCommunityCards] = useState<number>(0);
-  // Track previous actions to detect new ones
-  const [lastActionIndex, setLastActionIndex] = useState<number>(0);
   // Track previous game state to detect changes
   const [prevGameState, setPrevGameState] = useState<string | undefined>(undefined);
   
@@ -31,13 +29,8 @@ export default function PlayerView({ gameId }: PlayerViewProps) {
   const announcedHandRef = useRef<boolean>(false);
   // Track current hand by its content (as a string) to detect when it changes
   const [currentHandString, setCurrentHandString] = useState<string>("");
-
-  // Initialize lastActionIndex on component mount
-  useEffect(() => {
-    if (gameRoom?.actions && gameRoom.actions.length > 0) {
-      setLastActionIndex(gameRoom.actions.length);
-    }
-  }, [gameRoom?.actions]);
+  // Track announced actions by IDs
+  const [announcedActionIds, setAnnouncedActionIds] = useState<Set<string>>(new Set());
 
   if (!gameRoom) return <p>Loading player view...</p>;
   if (!userRole?.playerId) return <p>Error: Player ID not found</p>;
@@ -188,8 +181,152 @@ export default function PlayerView({ gameId }: PlayerViewProps) {
     }
   }, [gameRoom?.communityCards?.length, prevCommunityCards, screenReaderEnabled, speak]);
 
-  // Rest of the component stays the same...
-  
+  // Effect to announce player actions
+  useEffect(() => {
+    if (!screenReaderEnabled || !gameRoom?.actions) return;
+    
+    // Collect all new actions that haven't been announced yet
+    const newActions = gameRoom.actions.filter(action => {
+      // Create a unique ID for each action based on its properties
+      const actionId = `${action.type}-${action.playerId}-${action.timestamp}`;
+      return !announcedActionIds.has(actionId) && 
+             action.type !== "LOG" && 
+             action.type !== "SCAN_CARD" &&
+             action.playerId; // Make sure playerId exists
+    });
+    
+    if (newActions.length > 0) {
+      // Create a new Set with all previously announced actions plus the new ones
+      const updatedAnnouncedActions = new Set(announcedActionIds);
+      
+      // Process each new action
+      newActions.forEach(action => {
+        // Find the player position
+        const playerIndex = gameRoom.players.findIndex(p => p.id === action.playerId);
+        
+        if (playerIndex >= 0) {
+          const position = getPokerPosition(
+            playerIndex,
+            gameRoom.players.length,
+            gameRoom.smallBlindPosition
+          );
+          
+          const isCurrentPlayer = action.playerId === userRole.playerId;
+          const playerPrefix = isCurrentPlayer ? "You" : position;
+          
+          // Format the action
+          let actionText = "";
+          
+          switch (action.type) {
+            case "FOLD":
+              actionText = "fold";
+              break;
+            case "CHECK":
+              actionText = "check";
+              break;
+            case "CALL":
+              actionText = `call ${action.amount || 0}`;
+              break;
+            case "BET":
+              actionText = `bet ${action.amount || 0}`;
+              break;
+            case "RAISE":
+              actionText = `raise ${action.amount || 0}`;
+              break;
+            case "SMALL_BLIND":
+              actionText = `post small blind ${action.amount || 0}`;
+              break;
+            case "BIG_BLIND":
+              actionText = `post big blind ${action.amount || 0}`;
+              break;
+            default:
+              actionText = action.type.toLowerCase();
+          }
+          
+          // Announce the action
+          speak(`${playerPrefix} ${actionText}`);
+          
+          // Add this action to the announced set
+          const actionId = `${action.type}-${action.playerId}-${action.timestamp}`;
+          updatedAnnouncedActions.add(actionId);
+        }
+      });
+      
+      // Update the state with all newly announced actions
+      setAnnouncedActionIds(updatedAnnouncedActions);
+    }
+  }, [gameRoom?.actions, screenReaderEnabled, userRole.playerId, speak, gameRoom?.players, gameRoom?.smallBlindPosition, getPokerPosition, announcedActionIds]);
+
+  // Effect to announce game state changes (showdown/winner)
+  useEffect(() => {
+    if (!screenReaderEnabled || !gameRoom) return;
+    
+    // Detect change to SHOWDOWN state
+    if (
+      gameRoom.gameState === "SHOWDOWN" && 
+      prevGameState !== "SHOWDOWN"
+    ) {
+      // Gather active players' hands info
+      const activePlayers = gameRoom.players.filter(p => !p.folded);
+      
+      if (activePlayers.length > 1) {
+        let showdownAnnouncement = "Showdown: ";
+        
+        activePlayers.forEach((player, idx) => {
+          const position = getPokerPosition(
+            gameRoom.players.findIndex(p => p.id === player.id),
+            gameRoom.players.length,
+            gameRoom.smallBlindPosition
+          );
+          
+          // Add player's hand if available
+          if (player.handRanking) {
+            showdownAnnouncement += `${position} has ${player.handRanking}`;
+            
+            if (idx < activePlayers.length - 1) {
+              showdownAnnouncement += ", ";
+            }
+          }
+        });
+        
+        speak(showdownAnnouncement);
+      }
+    }
+    
+    // Announce winner
+    if (gameRoom.winnerIds && gameRoom.winnerIds.length > 0) {
+      const winners = gameRoom.players.filter(p => 
+        gameRoom.winnerIds?.includes(p.id)
+      );
+      
+      if (winners.length > 0) {
+        let winnerAnnouncement = winners.length === 1 ? "Winner is " : "Winners are ";
+        
+        winners.forEach((winner, idx) => {
+          const position = getPokerPosition(
+            gameRoom.players.findIndex(p => p.id === winner.id),
+            gameRoom.players.length,
+            gameRoom.smallBlindPosition
+          );
+          
+          winnerAnnouncement += position;
+          
+          if (winner.handRanking) {
+            winnerAnnouncement += ` with ${winner.handRanking}`;
+          }
+          
+          if (idx < winners.length - 1) {
+            winnerAnnouncement += ", ";
+          }
+        });
+        
+        speak(winnerAnnouncement);
+      }
+    }
+    
+    setPrevGameState(gameRoom.gameState);
+  }, [gameRoom?.gameState, gameRoom?.winnerIds, prevGameState, screenReaderEnabled, speak, gameRoom?.players, gameRoom?.smallBlindPosition, getPokerPosition]);
+
   return (
     <div className="w-full max-w-4xl">
       <Card className="mb-6">
