@@ -3,7 +3,6 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Poppins } from "next/font/google";
 import { GameProvider } from "@/lib/game-context";
-import DebugNavigation from "@/components/debug-navigation";
 import { Toaster } from "sonner";
 import { SessionRecoveryToast } from "@/components/session-recovery-toast";
 
@@ -13,11 +12,8 @@ const poppins = Poppins({
 });
 
 export const metadata: Metadata = {
-  title: "Shuffl",
-  description: "Accessible card games platform for everyone",
-  icons: {
-    icon: "/favicon.png",
-  },
+  title: "Shuffl | UniHack2025",
+  description: "Accessible card games platform for everyone.",
 };
 
 export default function RootLayout({
@@ -33,7 +29,6 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/favicon.png" />
       </head>
       <body className={`${poppins.className} antialiased`}>
-        <DebugNavigation />
         <GameProvider>
           <SessionRecoveryToast />
           {children}
