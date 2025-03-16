@@ -2,7 +2,9 @@ package com.edwn.unihack.util.eval;
 
 import java.util.Arrays;
 
-/** Utility methods for evaluating or creating a hand of cards. */
+/**
+ * Utility methods for evaluating or creating a hand of cards.
+ */
 public abstract class Hand {
     /**
      * Private constructor to disable instantiation of an abstract class.
@@ -14,6 +16,7 @@ public abstract class Hand {
     /**
      * Evaluates the given hand and returns its value as an integer.
      * Based on Kevin Suffecool's 5-card hand evaluator and with Paul Senzee's pre-computed hash.
+     *
      * @param cards a hand of cards to evaluate
      * @return the value of the hand as an integer between 1 and 7462
      */
@@ -56,6 +59,7 @@ public abstract class Hand {
 
     /**
      * Creates a new 5-card hand from the given string.
+     *
      * @param string the string to create the hand from, such as "Kd 5s Jc Ah Qc"
      * @return a new hand as an array of cards
      * @see Card
@@ -76,6 +80,7 @@ public abstract class Hand {
 
     /**
      * Converts the given hand into concatenation of their string representations
+     *
      * @param cards a hand of cards
      * @return a concatenation of the string representations of the given cards
      */
@@ -93,6 +98,7 @@ public abstract class Hand {
 
     /**
      * Checks if the given array of values has any duplicates.
+     *
      * @param values the values to check
      * @return true if the values contain duplicates, false otherwise
      */
