@@ -10,52 +10,10 @@ import PlayerActions from "@/components/player-actions";
 import AIAdvisor from "@/components/ai-advisor";
 import { getPokerPosition } from "@/lib/utils";
 import { useAzureSpeechSynthesis } from "@/hooks/useAzureSpeechSynthesis";
-
-// --- Local type definitions ---
-// (If you have shared types in "@/lib/types", consider importing them.)
-export interface CardType {
-  rank: string; // now required
-  suit: string; // now required
-}
-
-export interface Player {
-  id: string;
-  name: string;
-  visuallyImpaired: boolean;
-  chips: number;
-  active: boolean;
-  hand?: { cards: CardType[] };
-  online?: boolean; // raw data might be missing these
-  folded?: boolean;
-  handRanking?: string;
-}
-
-export interface GameAction {
-  type: string;
-  playerId?: string; // may be missing
-  timestamp?: string | number; // allow undefined
-  amount?: number;
-}
-
-export interface GameRoom {
-  players: Player[];
-  actions?: GameAction[];
-  currentPlayerIndex: number;
-  waitingForCards: boolean;
-  communityCards?: CardType[];
-  currentBet?: number;
-  bets?: { [playerId: string]: number };
-  pot?: number;
-  gameState: string;
-  winnerIds?: string[];
-  smallBlindPosition?: number;
-}
-
-// For convenience, assume the PlayerHand component expects a PlayerType
-// where online and folded are required booleans.
-export type PlayerType = Required<Omit<Player, "hand">> & {
-  hand?: { cards: CardType[] };
-};
+import { CardType, GameActionType, PlayerType } from "@/lib/types";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 
 interface PlayerViewProps {
   gameId: string;
@@ -79,12 +37,18 @@ export default function PlayerView({ gameId }: PlayerViewProps) {
   const [announcedWinner, setAnnouncedWinner] = useState<boolean>(false);
   const [announcedFlop, setAnnouncedFlop] = useState<boolean>(false);
 
+  const router = useRouter();
+  const { clearUserRole } = useGameContext();
+  const backendUrl =
+    process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080";
+
   // Determine if we're loading required data.
   const loading = !gameRoom || !userRole?.playerId;
   const currentPlayer =
     !loading && gameRoom!.players
-      ? (gameRoom!.players.find((p: Player) => p.id === userRole!.playerId) ??
-        null)
+      ? (gameRoom!.players.find(
+          (p: PlayerType) => p.id === userRole!.playerId,
+        ) ?? null)
       : null;
 
   const screenReaderEnabled = userRole?.screenReader === true;
@@ -130,7 +94,7 @@ export default function PlayerView({ gameId }: PlayerViewProps) {
     if (
       currentPlayer.hand.cards.length > 0 &&
       gameRoom.gameState === "PREFLOP" &&
-      gameRoom.waitingForCards === false &&
+      !gameRoom.waitingForCards &&
       handStr === currentHandString &&
       !announcedHandRef.current
     ) {
@@ -210,7 +174,7 @@ export default function PlayerView({ gameId }: PlayerViewProps) {
 
   useEffect(() => {
     if (!gameRoom || !screenReaderEnabled) return;
-    const actions = (gameRoom.actions ?? []) as GameAction[];
+    const actions = (gameRoom.actions ?? []) as GameActionType[];
     const newActions = actions.filter((action) => {
       if (action.timestamp === undefined || action.playerId === undefined)
         return false;
@@ -225,7 +189,7 @@ export default function PlayerView({ gameId }: PlayerViewProps) {
       const updatedAnnouncedActions = new Set(announcedActionIds);
       newActions.forEach((action) => {
         const playerIndex = gameRoom!.players.findIndex(
-          (p: Player) => p.id === action.playerId,
+          (p: PlayerType) => p.id === action.playerId,
         );
         if (playerIndex >= 0) {
           const position = getPokerPosition(
@@ -273,12 +237,14 @@ export default function PlayerView({ gameId }: PlayerViewProps) {
   useEffect(() => {
     if (!gameRoom || !screenReaderEnabled) return;
     if (gameRoom.gameState === "SHOWDOWN" && prevGameState !== "SHOWDOWN") {
-      const activePlayers = gameRoom.players.filter((p: Player) => !p.folded);
+      const activePlayers = gameRoom.players.filter(
+        (p: PlayerType) => !p.folded,
+      );
       if (activePlayers.length > 1) {
         let showdownAnnouncement = "Showdown: ";
-        activePlayers.forEach((player: Player, idx: number) => {
+        activePlayers.forEach((player: PlayerType, idx: number) => {
           const position = getPokerPosition(
-            gameRoom!.players.findIndex((p: Player) => p.id === player.id),
+            gameRoom!.players.findIndex((p: PlayerType) => p.id === player.id),
             gameRoom!.players.length,
             gameRoom!.smallBlindPosition!,
           );
@@ -304,15 +270,15 @@ export default function PlayerView({ gameId }: PlayerViewProps) {
       gameRoom.winnerIds.length > 0 &&
       !announcedWinner
     ) {
-      const winners = gameRoom.players.filter((p: Player) =>
+      const winners = gameRoom.players.filter((p: PlayerType) =>
         gameRoom.winnerIds!.includes(p.id),
       );
       if (winners.length > 0) {
         let winnerAnnouncement =
           winners.length === 1 ? "Winner is " : "Winners are ";
-        winners.forEach((winner: Player, idx: number) => {
+        winners.forEach((winner: PlayerType, idx: number) => {
           const position = getPokerPosition(
-            gameRoom!.players.findIndex((p: Player) => p.id === winner.id),
+            gameRoom!.players.findIndex((p: PlayerType) => p.id === winner.id),
             gameRoom!.players.length,
             gameRoom!.smallBlindPosition!,
           );
@@ -330,6 +296,28 @@ export default function PlayerView({ gameId }: PlayerViewProps) {
     }
     setPrevGameState(gameRoom.gameState);
   }, [gameRoom, prevGameState, screenReaderEnabled, speak, announcedWinner]);
+
+  // Add this function inside the component
+  const handleLeaveGame = async () => {
+    try {
+      const response = await fetch(
+        `${backendUrl}/api/game/${gameId}/leave?playerId=${currentPlayer?.id}`,
+        { method: "POST" },
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || "Failed to leave game");
+      }
+
+      toast.success("You have left the game");
+      clearUserRole();
+      router.push("/poker");
+    } catch (error) {
+      console.error("Error leaving game:", error);
+      toast.error("Failed to leave the game");
+    }
+  };
 
   // --- Render ---
   if (loading) {
@@ -349,13 +337,18 @@ export default function PlayerView({ gameId }: PlayerViewProps) {
         <CardHeader>
           <CardTitle className="flex justify-between items-center">
             <span>Game Room: {gameId}</span>
+            <div className="text-center">
+              <Button variant="outline" onClick={handleLeaveGame}>
+                Leave Game
+              </Button>
+            </div>
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col space-y-4">
             {/* Other players */}
             <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 overflow-x-auto whitespace-nowrap">
-              {gameRoom.players.map((player: Player, index: number) => {
+              {gameRoom.players.map((player: PlayerType, index: number) => {
                 const position = getPokerPosition(
                   index,
                   gameRoom.players.length,

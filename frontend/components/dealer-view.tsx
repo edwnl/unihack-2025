@@ -14,6 +14,8 @@ import { Input } from "./ui/input";
 import { useAzureSpeechRecognition } from "@/hooks/useAzureSpeechRecognition";
 import { Mic, MicOff } from "lucide-react";
 import { findBestPokerActionMatch, extractNumber } from "@/lib/fuzzy-match";
+import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 interface DealerViewProps {
   gameId: string;
@@ -57,7 +59,7 @@ function getRemainingCards(gameRoom: any): number {
 }
 
 export default function DealerView({ gameId }: DealerViewProps) {
-  const { gameRoom } = useGameContext();
+  const { gameRoom, clearUserRole } = useGameContext();
   const [error, setError] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string>("");
   const [raiseInputVoice, setRaiseInputVoice] = useState<number>(0);
@@ -69,6 +71,7 @@ export default function DealerView({ gameId }: DealerViewProps) {
   const raiseRef = useRef<HTMLButtonElement>(null);
   const allInRef = useRef<HTMLButtonElement>(null);
   const callRef = useRef<HTMLButtonElement>(null);
+  const router = useRouter();
 
   useEffect(() => {
     if (raiseRef.current) {
@@ -313,6 +316,28 @@ export default function DealerView({ gameId }: DealerViewProps) {
     }
   };
 
+  const handleDisbandRoom = async () => {
+    try {
+      const backendUrl =
+        process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080";
+      const response = await fetch(`${backendUrl}/api/game/${gameId}/disband`, {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || "Failed to disband game");
+      }
+
+      toast.success("You have disbanded the game room");
+      clearUserRole();
+      router.push("/poker");
+    } catch (error) {
+      console.error("Error disbanding game:", error);
+      toast.error("Failed to disband the game room");
+    }
+  };
+
   return (
     <div className="w-full max-w-4xl">
       <Card className="mb-6">
@@ -324,9 +349,11 @@ export default function DealerView({ gameId }: DealerViewProps) {
                 <span className="text-sm font-normal bg-secondary px-3 py-1 rounded">
                   {gameRoom.gameState}
                 </span>
-                <span className="text-sm font-normal bg-secondary px-3 py-1 rounded">
-                  Pot: {gameRoom.pot}
-                </span>
+                <div className="text-center">
+                  <Button variant="outline" onClick={handleDisbandRoom}>
+                    Disband Room
+                  </Button>
+                </div>
               </div>
             </div>
             <div className="mt-2 flex justify-center">
