@@ -157,7 +157,7 @@ public class GameRoomController {
 
         return ResponseEntity.ok(player);
     }
-    
+
     // Existing leave endpoint for players to leave the game
     @PostMapping("/{gameCode}/leave")
     public ResponseEntity<?> leaveGame(
@@ -170,7 +170,7 @@ public class GameRoomController {
         }
         return ResponseEntity.ok().build();
     }
-    
+
     // NEW endpoint: Dealer disbands the room, kicking all players.
     @PostMapping("/{gameCode}/disband")
     public ResponseEntity<?> disbandGame(@PathVariable String gameCode) {

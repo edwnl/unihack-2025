@@ -1,43 +1,93 @@
 package com.edwn.unihack.service;
 
-import java.util.stream.Collectors;
-
 import com.edwn.unihack.model.HandRanking;
 import com.edwn.unihack.model.Player;
-
-import com.edwn.unihack.util.eval.Evaluate;
 import com.edwn.unihack.util.eval.Card;
+import com.edwn.unihack.util.eval.Evaluate;
+
 import java.util.*;
 
 public class PokerHandEvaluator {
 
-    // Get hand ranking and description
+    private static final Map<String, Integer> rankMap = new HashMap<>();
+    private static final Map<String, Integer> suitMap = new HashMap<>();
+
+    // Add a static initializer to asynchronously load required classes
+    static {
+        // Initialize in a background thread
+        Thread initThread = new Thread(() -> {
+            try {
+                System.out.println("Starting async initialization of poker evaluation classes from PokerHandEvaluator...");
+                long startTime = System.currentTimeMillis();
+
+                // Force initialization of the Tables class
+                Class.forName("com.edwn.unihack.util.eval.Tables");
+
+                // Create a dummy card to ensure Card class is fully initialized
+                new Card(Card.ACE, Card.SPADES);
+
+                long endTime = System.currentTimeMillis();
+                System.out.println("Async initialization complete in " + (endTime - startTime) + "ms");
+            } catch (Exception e) {
+                System.err.println("Failed to preload poker evaluation classes: " + e.getMessage());
+            }
+        });
+
+        // Set as daemon thread so it doesn't prevent app shutdown
+        initThread.setDaemon(true);
+        // Give the thread a meaningful name
+        initThread.setName("Poker-Evaluator-Initializer-Double");
+        // Start the background initialization
+        initThread.start();
+    }
+
+    static {
+        // Initialize rank map
+        rankMap.put("KING", Card.KING);
+        rankMap.put("QUEEN", Card.QUEEN);
+        rankMap.put("JACK", Card.JACK);
+        rankMap.put("ACE", Card.ACE);
+        rankMap.put("TWO", Card.DEUCE);
+        rankMap.put("THREE", Card.TREY);
+        rankMap.put("FOUR", Card.FOUR);
+        rankMap.put("FIVE", Card.FIVE);
+        rankMap.put("SIX", Card.SIX);
+        rankMap.put("SEVEN", Card.SEVEN);
+        rankMap.put("EIGHT", Card.EIGHT);
+        rankMap.put("NINE", Card.NINE);
+        rankMap.put("TEN", Card.TEN);
+
+        // Initialize suit map
+        suitMap.put("HEARTS", Card.HEARTS);
+        suitMap.put("DIAMONDS", Card.DIAMONDS);
+        suitMap.put("CLUBS", Card.CLUBS);
+        suitMap.put("SPADES", Card.SPADES);
+    }
+
     public static HandRanking evaluateHand(Player player, List<com.edwn.unihack.model.Card> communityCards) {
         List<com.edwn.unihack.model.Card> playerCards = player.getHand().getCards();
-
         int size = communityCards.size() + playerCards.size();
-        System.out.print("SIZE ");
-        System.out.println();
-        if (size >= 5) {
-            Card[] cardHand = new Card[size];
-
-            for (int i = 0; i < playerCards.size(); i++) {
-
-                cardHand[i] = stringToCard(playerCards.get(i).getRank().toString(),
-                        playerCards.get(i).getSuit().toString());
-            }
-            for (int i = 0; i < communityCards.size(); i++) {
-
-                cardHand[i + playerCards.size()] = stringToCard(communityCards.get(i).getRank().toString(),
-                        communityCards.get(i).getSuit().toString());
-            }
-            Evaluate evaluator = new Evaluate(cardHand);
-            evaluator.printCard();
-            int handValue = evaluator.getValue();
-            return new HandRanking(getRankCategory(handValue), handValue, getRankCategoryString(handValue));
+        if (size < 5) {
+            return new HandRanking(0, 0, "Unknown");
         }
-        return new HandRanking(0, 0, "Unknown");
 
+        Card[] cardHand = new Card[size];
+
+        for (int i = 0; i < playerCards.size(); i++) {
+            cardHand[i] = stringToCard(playerCards.get(i).getRank().toString(),
+                    playerCards.get(i).getSuit().toString());
+        }
+        for (int i = 0; i < communityCards.size(); i++) {
+            cardHand[i + playerCards.size()] = stringToCard(communityCards.get(i).getRank().toString(),
+                    communityCards.get(i).getSuit().toString());
+        }
+
+        Evaluate evaluator = new Evaluate(cardHand);
+
+        evaluator.printCard();
+        int handValue = evaluator.getValue();
+
+        return new HandRanking(getRankCategory(handValue), handValue, getRankCategoryString(handValue));
     }
 
     public static String getRankCategoryString(int value) {
@@ -102,72 +152,16 @@ public class PokerHandEvaluator {
     }
 
     public static Card stringToCard(String rank, String suit) {
-        int rank_no = -1, suit_no = -1;
-
-        // Convert rank to number using words in all caps
-        switch (rank.toUpperCase()) {
-            case "KING":
-                rank_no = Card.KING;
-                break;
-            case "QUEEN":
-                rank_no = Card.QUEEN;
-                break;
-            case "JACK":
-                rank_no = Card.JACK;
-                break;
-            case "ACE":
-                rank_no = Card.ACE;
-                break;
-            case "TWO":
-                rank_no = Card.DEUCE;
-                break;
-            case "THREE":
-                rank_no = Card.TREY;
-                break;
-            case "FOUR":
-                rank_no = Card.FOUR;
-                break;
-            case "FIVE":
-                rank_no = Card.FIVE;
-                break;
-            case "SIX":
-                rank_no = Card.SIX;
-                break;
-            case "SEVEN":
-                rank_no = Card.SEVEN;
-                break;
-            case "EIGHT":
-                rank_no = Card.EIGHT;
-                break;
-            case "NINE":
-                rank_no = Card.NINE;
-                break;
-            case "TEN":
-                rank_no = Card.TEN;
-                break;
-            default:
-                throw new IllegalArgumentException("Invalid rank: " + rank);
+        Integer rankNo = rankMap.get(rank);
+        if (rankNo == null) {
+            throw new IllegalArgumentException("Invalid rank: " + rank);
         }
 
-        // Convert suit to number using words in all caps
-        switch (suit.toUpperCase()) {
-            case "HEARTS":
-                suit_no = Card.HEARTS;
-                break;
-            case "DIAMONDS":
-                suit_no = Card.DIAMONDS;
-                break;
-            case "CLUBS":
-                suit_no = Card.CLUBS;
-                break;
-            case "SPADES":
-                suit_no = Card.SPADES;
-                break;
-            default:
-                throw new IllegalArgumentException("Invalid suit: " + suit);
+        Integer suitNo = suitMap.get(suit);
+        if (suitNo == null) {
+            throw new IllegalArgumentException("Invalid suit: " + suit);
         }
 
-        return new Card(rank_no, suit_no); // Assuming Card constructor accepts rank and suit as integers
+        return new Card(rankNo, suitNo);
     }
-
 }

@@ -47,6 +47,10 @@ public class GameRoom {
                 .build();
     }
 
+    private static String generateGameCode() {
+        return UUID.randomUUID().toString().substring(0, 6).toUpperCase();
+    }
+
     public void newHand() {
         setCommunityCards(new ArrayList<>());
         setGameState(GameRoom.GameState.PREFLOP);
@@ -56,10 +60,6 @@ public class GameRoom {
         setCurrentBet(0);
         setActions(new ArrayList<>());
         setWinnerIds(new ArrayList<>());
-    }
-
-    private static String generateGameCode() {
-        return UUID.randomUUID().toString().substring(0, 6).toUpperCase();
     }
 
     public Player getCurrentPlayer() {
@@ -78,10 +78,6 @@ public class GameRoom {
         } while (players.get(currentPlayerIndex).isFolded() || !players.get(currentPlayerIndex).isActive());
     }
 
-    public enum GameState {
-        WAITING, STARTED, PREFLOP, FLOP, TURN, RIVER, SHOWDOWN, ENDED
-    }
-
     public boolean isAllPlayersAllInOrFolded() {
         int activeNonAllInPlayers = 0;
 
@@ -95,5 +91,9 @@ public class GameRoom {
 
         // If there's only 0 or 1 player with chips, all others are all-in
         return activeNonAllInPlayers <= 1;
+    }
+
+    public enum GameState {
+        WAITING, STARTED, PREFLOP, FLOP, TURN, RIVER, SHOWDOWN, ENDED
     }
 }

@@ -124,6 +124,7 @@ export default function DealerView({ gameId }: DealerViewProps) {
     if (scanDelay) return; // Prevent scanning if not allowed
     if (!canScan) return; // Prevent scanning if not allowed
     setScanDelay(true);
+
     setTimeout(() => {
       setScanDelay(false);
     }, 150);

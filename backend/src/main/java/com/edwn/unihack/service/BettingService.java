@@ -264,9 +264,7 @@ public class BettingService {
                 if (nonAllInPlayer != null) {
                     int playerBet = room.getBets().getOrDefault(nonAllInPlayer.getId(), 0);
                     // If they haven't matched the bet, we can't fast forward
-                    if (playerBet < targetBet) {
-                        return false;
-                    }
+                    return playerBet >= targetBet;
                 }
             }
 
