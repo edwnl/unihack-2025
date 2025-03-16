@@ -32,7 +32,6 @@ public class PokerHandEvaluator {
                         communityCards.get(i).getSuit().toString());
             }
             Evaluate evaluator = new Evaluate(cardHand);
-            evaluator.printCard();
             int handValue = evaluator.getValue();
             return new HandRanking(getRankCategory(handValue), handValue, getRankCategoryString(handValue));
         }
