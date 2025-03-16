@@ -206,33 +206,40 @@ export default function DealerView({ gameId }: DealerViewProps) {
     const action = findBestPokerActionMatch(normalized);
 
     if (!action) {
+      toast.error("Unrecognized voice command: " + normalized);
       console.log("Unrecognized voice command:", normalized);
       return;
     }
 
     if (action === "fold") {
+      toast.success("Fold command recognized.");
       if (foldRef.current) {
         foldRef.current.click();
       }
     } else if (action === "check") {
+      toast.success("Check command recognized.");
       if (checkRef.current) {
         checkRef.current.click();
       }
     } else if (action === "call") {
+      toast.success("Call command recognized.");
       if (callRef.current) {
         callRef.current.click();
       }
     } else if (action === "raise" || action === "bet") {
+      toast.success("Raise command recognized.");
       setRaiseInput(extractNumber(normalized) || 0);
       setRaiseInputVoice(extractNumber(normalized) || 0);
       if (raiseRef.current) {
         raiseRef.current.click();
       }
     } else if (action === "allin") {
+      toast.success("All-in command recognized.");
       if (allInRef.current) {
         allInRef.current.click();
       }
     } else {
+      toast.error("Unrecognized action: " + action);
       console.log("Unrecognized action:", action);
     }
   };
@@ -346,9 +353,6 @@ export default function DealerView({ gameId }: DealerViewProps) {
             <div className="w-full flex justify-between items-center">
               <span>Game Room: {gameId}</span>
               <div className="flex space-x-2 items-center">
-                <span className="text-sm font-normal bg-secondary px-3 py-1 rounded">
-                  {gameRoom.gameState}
-                </span>
                 <div className="text-center">
                   <Button variant="outline" onClick={handleDisbandRoom}>
                     Disband Room

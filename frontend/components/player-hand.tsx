@@ -1,3 +1,4 @@
+// frontend/components/player-hand.tsx
 "use client";
 
 import { PlayerType } from "@/lib/types";
@@ -29,6 +30,15 @@ export default function PlayerHand({
 
   // Function to display the player's status/last action
   const getPlayerStatus = () => {
+    if (isWinner) {
+      return "Winner!";
+    }
+
+    // Check if player is all-in (chips = 0)
+    if (player.chips === 0 && player.active && !player.folded) {
+      return "All-In";
+    }
+
     if (player.folded) {
       return "Folded";
     }
@@ -89,9 +99,11 @@ export default function PlayerHand({
       <div className="flex flex-col">
         {/* Display hand ranking if available and showCards is true */}
         <p className="text-xs text-center mt-1 font-medium bg-secondary/30 rounded py-1 px-2 text-wrap min-h-[2.5rem] flex items-center justify-center">
-          {player.handRanking && (showCards || isPlayer)
-            ? player.handRanking
-            : "Unknown"}
+          {player.folded
+            ? "🏳️"
+            : player.handRanking && (showCards || isPlayer)
+              ? player.handRanking
+              : "Unknown"}
         </p>
 
         {/* Player's cards if available */}
@@ -128,7 +140,11 @@ export default function PlayerHand({
                   ? "bg-primary/20"
                   : playerStatus === "Folded"
                     ? "text-muted-foreground"
-                    : "bg-secondary/30"
+                    : playerStatus === "All-In"
+                      ? "bg-yellow-500/30"
+                      : playerStatus === "Winner!"
+                        ? "bg-green-500/30 font-bold"
+                        : "bg-secondary/30"
               }`}
             >
               {playerStatus}
