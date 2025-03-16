@@ -83,8 +83,6 @@ public class PokerHandEvaluator {
         }
 
         Evaluate evaluator = new Evaluate(cardHand);
-
-        evaluator.printCard();
         int handValue = evaluator.getValue();
 
         return new HandRanking(getRankCategory(handValue), handValue, getRankCategoryString(handValue));
