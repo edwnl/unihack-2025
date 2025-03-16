@@ -6,6 +6,8 @@ import Link from "next/link";
 import { DotLottiePlayer } from "@dotlottie/react-player";
 import "@dotlottie/react-player/dist/index.css";
 import DotBackground from "@/components/dot-background";
+import FullLogo from "@/assets/full-logo.svg";
+import Image from "next/image";
 
 export default function Home() {
   const [mounted, setMounted] = useState(false);
@@ -19,17 +21,11 @@ export default function Home() {
   return (
     <>
       <DotBackground />
-      <main className="flex min-h-svh flex-col items-center mx-auto max-w-5xl px-6">
+      <main className="flex min-h-svh flex-col items-center mx-auto max-w-7xl px-6">
         {/* Navigation Area */}
         <nav className="w-full flex justify-between items-center py-6">
           {/* Logo */}
-          <motion.div
-            className="bg-white text-black rounded-full shadow-lg px-6 py-2 flex items-center cursor-pointer"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            <span className="font-bold">shuffl 🂡</span>
-          </motion.div>
+          <Image src={FullLogo} className={"w-36"} alt={"Shuffl Logo"} />
 
           {/* Play Now Button */}
           <Link href="/pick-game">
@@ -91,7 +87,7 @@ export default function Home() {
               autoplay
               style={{
                 width: "100%",
-                maxWidth: "min(450px, 70vw)",
+                maxWidth: "min(350px, 70vw)",
               }}
             />
           </motion.div>
