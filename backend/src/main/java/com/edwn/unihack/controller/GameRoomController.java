@@ -44,6 +44,10 @@ public class GameRoomController {
             return ResponseEntity.badRequest().body("Room not found");
         }
 
+        if (room.getGameState() != GameRoom.GameState.WAITING) {
+            return ResponseEntity.badRequest().body("Cannot join game in progress");
+        }
+
         if (room.getPlayers().size() >= 5) {
             return ResponseEntity.badRequest().body("A room can't have more than 5 players.");
         }
