@@ -31,7 +31,7 @@ export default function PlayerHand({
   // Function to display the player's status/last action
   const getPlayerStatus = () => {
     if (isWinner) {
-      return "Winner!"
+      return "Winner!";
     }
 
     // Check if player is all-in (chips = 0)
@@ -134,19 +134,19 @@ export default function PlayerHand({
         {/* Status indicators */}
         <div className="flex justify-center gap-1 mt-1">
           {playerStatus && (
-              <span
-                  className={`text-xs px-2 py-1 rounded ${
-                      playerStatus === "Current Turn"
-                          ? "bg-primary/20"
-                          : playerStatus === "Folded"
-                              ? "text-muted-foreground"
-                              : playerStatus === "All-In"
-                                  ? "bg-yellow-500/30"
-                                  : playerStatus === "Winner!"
-                                      ? "bg-green-500/30 font-bold"
-                                      : "bg-secondary/30"
-                  }`}
-              >
+            <span
+              className={`text-xs px-2 py-1 rounded ${
+                playerStatus === "Current Turn"
+                  ? "bg-primary/20"
+                  : playerStatus === "Folded"
+                    ? "text-muted-foreground"
+                    : playerStatus === "All-In"
+                      ? "bg-yellow-500/30"
+                      : playerStatus === "Winner!"
+                        ? "bg-green-500/30 font-bold"
+                        : "bg-secondary/30"
+              }`}
+            >
               {playerStatus}
             </span>
           )}

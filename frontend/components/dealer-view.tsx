@@ -206,7 +206,7 @@ export default function DealerView({ gameId }: DealerViewProps) {
     const action = findBestPokerActionMatch(normalized);
 
     if (!action) {
-      toast.error("Unrecognized voice command: " + normalized)
+      toast.error("Unrecognized voice command: " + normalized);
       console.log("Unrecognized voice command:", normalized);
       return;
     }
@@ -239,7 +239,7 @@ export default function DealerView({ gameId }: DealerViewProps) {
         allInRef.current.click();
       }
     } else {
-      toast.error("Unrecognized action: " + action)
+      toast.error("Unrecognized action: " + action);
       console.log("Unrecognized action:", action);
     }
   };
