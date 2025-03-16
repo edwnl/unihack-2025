@@ -20,7 +20,6 @@ export default function PlayerJoinPage() {
   const [name, setName] = useState(generateRandomName());
   const [gameCode, setGameCode] = useState("");
   const [online, setOnline] = useState(true);
-  const [visuallyImpaired, setVisuallyImpaired] = useState(false);
   const [screenReader, setScreenReader] = useState(false);
 
   // Backend URL with fallback
@@ -39,7 +38,7 @@ export default function PlayerJoinPage() {
       const response = await fetch(`${backendUrl}/api/game/player/join`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, gameCode, online, visuallyImpaired }),
+        body: JSON.stringify({ name, gameCode, online }),
       });
 
       if (!response.ok) {
@@ -118,20 +117,6 @@ export default function PlayerJoinPage() {
                   id="online"
                   checked={online}
                   onCheckedChange={setOnline}
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <label
-                  htmlFor="visuallyImpaired"
-                  className="block text-sm font-medium"
-                >
-                  Visually Impaired
-                </label>
-                <Switch
-                  id="visuallyImpaired"
-                  checked={visuallyImpaired}
-                  onCheckedChange={setVisuallyImpaired}
                 />
               </div>
 

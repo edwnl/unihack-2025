@@ -28,8 +28,8 @@ export default function StartPage() {
       <Button
         variant="ghost"
         className="absolute top-4 left-4"
-        onClick={() => router.push("/")}
-        aria-label="Go back to home page"
+        onClick={() => router.push("/pick-game")}
+        aria-label="Go back to game select"
       >
         <ArrowLeft className="w-5 h-5 mr-1" />
         Back
