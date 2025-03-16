@@ -68,6 +68,14 @@ public class GameRoomService {
             return null;
         }
 
+        // Check for duplicate names
+        boolean nameExists = room.getPlayers().stream()
+                .anyMatch(p -> p.getName().equalsIgnoreCase(name));
+
+        if (nameExists) {
+            return null; // Name already exists in this room
+        }
+
         Player player = Player.builder()
                 .id(UUID.randomUUID().toString())
                 .name(name)

@@ -29,8 +29,6 @@ export default function GamePage() {
       if (updatedRoom.gameState === "WAITING") {
         router.push(`/poker/waiting/${gameId}`);
         toast(`This game is already started!`);
-      } else {
-        if (userRole?.role) toast(`Connected to room ${gameId} via websocket!`);
       }
     });
 
@@ -45,7 +43,7 @@ export default function GamePage() {
     }
 
     if (!userRole?.role) {
-      toast("You don't have access to this game!");
+      toast("You are no longer in the game.");
       router.push("/poker");
       return;
     }

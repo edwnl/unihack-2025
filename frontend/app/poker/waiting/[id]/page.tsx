@@ -30,6 +30,21 @@ export default function WaitingRoomPage() {
     connectWebSocket(gameId, (updatedRoom) => {
       setGameRoom(updatedRoom);
 
+      // Check if player is still in the room
+      if (userRole?.role === "PLAYER") {
+        const isPlayerInRoom = updatedRoom.players.some(
+          (player) => player.id === userRole.playerId,
+        );
+
+        if (!isPlayerInRoom) {
+          // Player has been kicked
+          toast.error("You have been removed from the game");
+          clearUserRole(); // do not add this to the dependency array
+          router.push("/poker");
+          return;
+        }
+      }
+
       // If the game is no longer WAITING, we decide where to redirect
       if (updatedRoom.gameState !== "WAITING") {
         // If disbanded or ended, go back to /poker
@@ -38,20 +53,20 @@ export default function WaitingRoomPage() {
           updatedRoom.gameState === "DISBANDED"
         ) {
           router.push("/poker");
+          clearUserRole();
         } else {
-          // Otherwise, assume the game has started
+          toast("Starting game...");
           router.push(`/poker/game/${gameId}`);
-          toast("Game has started!");
         }
-      } else {
-        if (userRole?.role)
-          toast(`Connected to waiting room ${gameId} via websocket!`);
       }
     });
 
     return () => {
       disconnectWebSocket();
     };
+
+    // disabling this as adding clearUserRole causes spam websocket connections
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameId, setGameRoom, userRole, router, isLoading]);
 
   // Check if user has access to this room and the room exists
@@ -61,7 +76,7 @@ export default function WaitingRoomPage() {
     }
 
     if (!userRole?.role) {
-      toast("You don't have access to this waiting room!");
+      toast("You are no longer in the waiting room.");
       router.push("/poker");
       return;
     }
@@ -194,7 +209,7 @@ export default function WaitingRoomPage() {
                     onClick={copyGameCode}
                     className="h-6 px-2"
                   >
-                    {isCopied ? "Copied!" : "Copy"}
+                    {isCopied ? "Copied!" : "Copy Code"}
                   </Button>
                 </div>
               </div>
