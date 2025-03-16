@@ -8,6 +8,7 @@ import { useGameContext } from "@/lib/game-context";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { generateRandomName } from "@/lib/name-generator";
+import { toast } from "sonner";
 
 export default function PlayerJoinPage() {
   const router = useRouter();
@@ -43,6 +44,7 @@ export default function PlayerJoinPage() {
 
       if (!response.ok) {
         const errorText = await response.text();
+        toast.error(errorText || "Failed to join game");
         throw new Error(errorText || "Failed to join game");
       }
 

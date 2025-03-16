@@ -32,10 +32,29 @@ public class GameRoomController {
                 .build());
     }
 
+
     @PostMapping("/player/join")
     public ResponseEntity<?> joinAsPlayer(@RequestBody CreatePlayerRequest request) {
         if (request.getGameCode() == null || request.getName() == null) {
             return ResponseEntity.badRequest().body("Game code and name are required");
+        }
+
+        GameRoom room = gameRoomService.findRoomByCode(request.getGameCode()).orElse(null);
+        if (room == null) {
+            return ResponseEntity.badRequest().body("Room not found");
+        }
+
+        if (room.getPlayers().size() >= 5) {
+            return ResponseEntity.badRequest().body("A room can't have more than 5 players.");
+        }
+
+        // First check if the name is already taken
+        boolean nameExists = room.getPlayers().stream()
+                .anyMatch(p -> p.getName().equalsIgnoreCase(request.getName()));
+
+        if (nameExists) {
+            return ResponseEntity.badRequest()
+                    .body("This name is already taken in the game.");
         }
 
         Player player = gameRoomService.addPlayerToRoom(

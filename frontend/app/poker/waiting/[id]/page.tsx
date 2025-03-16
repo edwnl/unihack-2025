@@ -30,6 +30,21 @@ export default function WaitingRoomPage() {
     connectWebSocket(gameId, (updatedRoom) => {
       setGameRoom(updatedRoom);
 
+      // Check if player is still in the room
+      if (userRole?.role === "PLAYER") {
+        const isPlayerInRoom = updatedRoom.players.some(
+          (player) => player.id === userRole.playerId,
+        );
+
+        if (!isPlayerInRoom) {
+          // Player has been kicked
+          toast.error("You have been removed from the game");
+          clearUserRole();
+          router.push("/poker");
+          return;
+        }
+      }
+
       // If the game is no longer WAITING, we decide where to redirect
       if (updatedRoom.gameState !== "WAITING") {
         // If disbanded or ended, go back to /poker
